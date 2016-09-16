@@ -19,6 +19,7 @@ import (
 	"github.com/hashicorp/vault/builtin/logical/aws"
 	"github.com/hashicorp/vault/builtin/logical/cassandra"
 	"github.com/hashicorp/vault/builtin/logical/consul"
+	"github.com/hashicorp/vault/builtin/logical/database"
 	"github.com/hashicorp/vault/builtin/logical/mongodb"
 	"github.com/hashicorp/vault/builtin/logical/mssql"
 	"github.com/hashicorp/vault/builtin/logical/mysql"
@@ -77,6 +78,7 @@ func Commands(metaPtr *meta.Meta) map[string]cli.CommandFactory {
 				LogicalBackends: map[string]logical.Factory{
 					"aws":        aws.Factory,
 					"consul":     consul.Factory,
+					"database":   database.Factory,
 					"postgresql": postgresql.Factory,
 					"cassandra":  cassandra.Factory,
 					"pki":        pki.Factory,
