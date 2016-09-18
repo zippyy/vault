@@ -1,10 +1,6 @@
 package database
 
 import (
-	"fmt"
-	"strings"
-
-	"github.com/hashicorp/vault/helper/strutil"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -108,29 +104,29 @@ func (b *backend) pathRoleCreate(
 	sql := data.Get("sql").(string)
 
 	// Get our connection
-	db, err := b.DBConnection(req.Storage, db_name)
-	if err != nil {
-		return nil, err
-	}
+	//	db, err := b.DBConnection(req.Storage, db_name)
+	//	if err != nil {
+	//		return nil, err
+	//	}
 
 	// Test the query by trying to prepare it
-	for _, query := range strutil.ParseArbitraryStringSlice(sql, ";") {
-		query = strings.TrimSpace(query)
-		if len(query) == 0 {
-			continue
-		}
+	//	for _, query := range strutil.ParseArbitraryStringSlice(sql, ";") {
+	//		query = strings.TrimSpace(query)
+	//		if len(query) == 0 {
+	//			continue
+	//		}
 
-		stmt, err := db.Prepare(Query(query, map[string]string{
-			"name":       "foo",
-			"password":   "bar",
-			"expiration": "",
-		}))
-		if err != nil {
-			return logical.ErrorResponse(fmt.Sprintf(
-				"Error testing query: %s", err)), nil
-		}
-		stmt.Close()
-	}
+	//		stmt, err := db.Prepare(Query(query, map[string]string{
+	//			"name":       "foo",
+	//			"password":   "bar",
+	//			"expiration": "",
+	//		}))
+	//		if err != nil {
+	//			return logical.ErrorResponse(fmt.Sprintf(
+	//				"Error testing query: %s", err)), nil
+	//		}
+	//		stmt.Close()
+	//	}
 
 	// Store it
 	entry, err := logical.StorageEntryJSON("role/"+name, &roleEntry{

@@ -2,11 +2,8 @@ package database
 
 import (
 	"fmt"
-	"strings"
-	"time"
 
 	"github.com/hashicorp/go-uuid"
-	"github.com/hashicorp/vault/helper/strutil"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 	_ "github.com/lib/pq"
@@ -79,57 +76,50 @@ func (b *backend) pathRoleCreateRead(
 	if err != nil {
 		return nil, err
 	}
-	expiration := time.Now().
-		Add(lease.Lease).
-		Format("2006-01-02 15:04:05-0700")
-
-	// Get our handle
-	b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: getting database handle")
-	db, err := b.DBConnection(req.Storage)
-	if err != nil {
-		return nil, err
-	}
+	//	expiration := time.Now().
+	//		Add(lease.Lease).
+	//		Format("2006-01-02 15:04:05-0700")
 
 	// Start a transaction
-	b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: starting transaction")
-	tx, err := db.Begin()
-	if err != nil {
-		return nil, err
-	}
-	defer func() {
-		b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: rolling back transaction")
-		tx.Rollback()
-	}()
+	//	b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: starting transaction")
+	//	tx, err := db.Begin()
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	//	defer func() {
+	//		b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: rolling back transaction")
+	//		tx.Rollback()
+	//	}()
 
 	// Execute each query
-	for _, query := range strutil.ParseArbitraryStringSlice(role.SQL, ";") {
-		query = strings.TrimSpace(query)
-		if len(query) == 0 {
-			continue
-		}
+	//	for _, query := range strutil.ParseArbitraryStringSlice(role.SQL, ";") {
+	//		query = strings.TrimSpace(query)
+	//		if len(query) == 0 {
+	//			continue
+	//		}
 
-		b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: preparing statement")
-		stmt, err := tx.Prepare(Query(query, map[string]string{
-			"name":       username,
-			"password":   password,
-			"expiration": expiration,
-		}))
-		if err != nil {
-			return nil, err
-		}
-		defer stmt.Close()
-		b.logger.Println("[TRACE] postgres/pathRoleCreateRead: executing statement")
-		if _, err := stmt.Exec(); err != nil {
-			return nil, err
-		}
-	}
+	//		b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: preparing statement")
+	//		stmt, err := tx.Prepare(Query(query, map[string]string{
+	//			"name":       username,
+	//			"password":   password,
+	//			"expiration": expiration,
+	//		}))
+	//		if err != nil {
+	//			return nil, err
+	//		}
+	//		defer stmt.Close()
+	//		b.logger.Println("[TRACE] postgres/pathRoleCreateRead: executing statement")
+	//		if _, err := stmt.Exec(); err != nil {
+	//			return nil, err
+	//		}
+	//	}
 
 	// Commit the transaction
 
-	b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: committing transaction")
-	if err := tx.Commit(); err != nil {
-		return nil, err
-	}
+	//	b.logger.Trace("[TRACE] postgres/pathRoleCreateRead: committing transaction")
+	//	if err := tx.Commit(); err != nil {
+	//		return nil, err
+	//	}
 
 	// Return the secret
 
