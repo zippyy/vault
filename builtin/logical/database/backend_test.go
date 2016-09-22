@@ -42,9 +42,9 @@ func prepareTestContainer(t *testing.T, s logical.Storage, b logical.Backend) (c
 		resp, err := b.HandleRequest(&logical.Request{
 			Storage:   s,
 			Operation: logical.UpdateOperation,
-			Path:      "config/connection",
+			Path:      "dbs/test",
 			Data: map[string]interface{}{
-				"connection_url": connURL,
+				"connection_string": connURL,
 			},
 		})
 		if err != nil || (resp != nil && resp.IsError()) {
@@ -84,16 +84,17 @@ func TestBackend_config_connection(t *testing.T) {
 	}
 
 	configData := map[string]interface{}{
-		"connection_url":       "sample_connection_url",
-		"value":                "",
-		"max_open_connections": 9,
-		"max_idle_connections": 7,
-		"verify_connection":    false,
+		"database_type":           "postgresql",
+		"connection_string":       "sample_connection_url",
+		"max_open_connections":    9,
+		"max_idle_connections":    7,
+		"verify_connection":       false,
+		"allowed_roles":           "",
 	}
 
 	configReq := &logical.Request{
 		Operation: logical.UpdateOperation,
-		Path:      "config/connection",
+		Path:      "dbs/test1",
 		Storage:   config.StorageView,
 		Data:      configData,
 	}
@@ -153,7 +154,7 @@ func TestBackend_roleCrud(t *testing.T) {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"connection_url": connURL,
+		"connection_string": connURL,
 	}
 
 	logicaltest.Test(t, logicaltest.TestCase{
@@ -181,7 +182,7 @@ func TestBackend_BlockStatements(t *testing.T) {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"connection_url": connURL,
+		"connection_string": connURL,
 	}
 
 	jsonBlockStatement, err := json.Marshal(testBlockStatementRoleSlice)
@@ -213,7 +214,7 @@ func TestBackend_roleReadOnly(t *testing.T) {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"connection_url": connURL,
+		"connection_string": connURL,
 	}
 
 	logicaltest.Test(t, logicaltest.TestCase{

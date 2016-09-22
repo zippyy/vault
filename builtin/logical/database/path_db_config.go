@@ -12,7 +12,7 @@ import (
 
 func pathConfigConnection(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "sql/dbs/" + framework.GenericNameRegex("name"),
+		Pattern: "dbs/" + framework.GenericNameRegex("name"),
 		Fields: map[string]*framework.FieldSchema{
 			"name": &framework.FieldSchema{
 				Type:        framework.TypeString,
@@ -72,7 +72,7 @@ When no value is given, no roles are allowed. When * is given, all roles are all
 // pathConnectionRead reads out the connection configuration
 func (b *backend) pathConnectionRead(req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	name := data.Get("name").(string)
-	entry, err := req.Storage.Get("sql/dbs/"+name)
+	entry, err := req.Storage.Get("dbs/"+name)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read connection configuration")
 	}
@@ -120,23 +120,23 @@ func (b *backend) pathConnectionWrite(
 	allowedRoles := data.Get("allowed_roles").(string)
 
 	// Don't check the connection_string if verification is disabled
-	//	verifyConn := data.Get("verify_connection").(bool)
-	//	if verifyConn {
-	//		// Verify the string
-	//		switch dbType {
-	//		case "postgresql":
-	//			err := verifyConnection(connStr)
-	//			if err != "" {
-	//				return logical.ErrorResponse(err), nil
-	//			}
-	//		default:
-	//			return logical.ErrorResponse(fmt.Sprintf(
-	//				"Error validating connection info: unrecognized database type")), nil
-	//		}
-	//	}
+	verifyConn := data.Get("verify_connection").(bool)
+	if verifyConn {
+		// Verify the string
+		switch dbType {
+		case "postgresql":
+			err := verifyConnection(dbType, connStr)
+			if err != "" {
+				return logical.ErrorResponse(err), nil
+			}
+		default:
+			return logical.ErrorResponse(fmt.Sprintf(
+				"Error validating connection info: unrecognized database type")), nil
+		}
+	}
 
 	// Store it
-	entry, err := logical.StorageEntryJSON("sql/dbs/"+dbName, SqlConfig{
+	entry, err := logical.StorageEntryJSON("dbs/"+dbName, SqlConfig{
 		DBType:             dbType,
 		ConnectionString:   connStr,
 		MaxOpenConnections: maxOpenConns,
@@ -149,6 +149,9 @@ func (b *backend) pathConnectionWrite(
 	if err := req.Storage.Put(entry); err != nil {
 		return nil, err
 	}
+	
+	//Reset the DB connection
+	b.ResetDB(dbName)
 
 	resp := &logical.Response{}
 	resp.AddWarning("Read access to this endpoint should be controlled via ACLs as it will return the connection string or URL as it is, including passwords, if any.")

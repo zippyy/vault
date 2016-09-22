@@ -9,7 +9,7 @@ import (
 // This returns the list of databases
 func pathListDBs(b *backend) *framework.Path {
 	return &framework.Path{
-		Pattern: "sql/dbs/",
+		Pattern: "dbs/",
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
 			logical.ListOperation: b.pathDBsList,
@@ -21,7 +21,7 @@ func pathListDBs(b *backend) *framework.Path {
 }
 
 func (b *backend) pathDBsList(req *logical.Request, data *framework.FieldData) (response *logical.Response, retErr error) {
-	entries, err := req.Storage.List("sql/dbs/")
+	entries, err := req.Storage.List("dbs/")
 	if err != nil {
 		return nil, err
 	}

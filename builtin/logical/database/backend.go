@@ -1,7 +1,7 @@
 package database
 
 import (
-//	"database/sql"
+	"database/sql"
 	"strings"
 	"sync"
 	"fmt"
@@ -34,10 +34,12 @@ func Backend(conf *logical.BackendConfig) *backend {
 			secretCreds(&b),
 		},
 
-		//Clean: b.ResetDB,
+		//Clean: ResetDB,
 	}
 
 	b.logger = conf.Logger
+	b.dbs = make(map[string]*sql.DB)
+	
 	return &b
 }
 
@@ -45,35 +47,85 @@ type backend struct {
 	*framework.Backend
 
 	lock sync.Mutex
-	dbs  map[string]*SqlDb
+	dbs  map[string]*sql.DB
 
 	logger log.Logger
 }
 
 func (b *backend) DBConnection(s logical.Storage, name string) (error) {
-	b.logger.Trace("sql/db: enter")
-	defer b.logger.Trace("sql/db: exit")
+	b.logger.Trace("db: enter")
+	defer b.logger.Trace("db: exit")
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
+	var config SqlConfig
+	
 	// If don't have a database, error
 	if b.dbs[name] == nil {
 		// Attempt to find connection
-		entry, err := s.Get("sql/db"+name)
+		entry, err := s.Get("dbs/"+name)
 		if err != nil {
 			return err
 		}
 		if entry == nil {
 			return fmt.Errorf("configure the DB connection with sql/db first")
 		}
-		
-		if err := entry.DecodeJSON(&b.dbs[name].config); err == nil {
+		if err := entry.DecodeJSON(&config); err == nil {
 			return err
 		}
 	}
-		return DBConnect(b.dbs[name])
+	
+	// If the connection exists, move on
+	if b.dbs[name] != nil {
+		if err := b.dbs[name].Ping(); err == nil {
+			return nil
+		}
+		// If the ping was unsuccessful, close it and ignore errors
+		// in favor of attempting to reestablish the connection
+		b.dbs[name].Close()
+	}
+
+	// Ensure UTC for all connections
+	if strings.HasPrefix(config.ConnectionString, "postgres://") || strings.HasPrefix(config.ConnectionString, "postgresql://") {
+		if strings.Contains(config.ConnectionString, "?") {
+			config.ConnectionString += "&timezone=utc"
+		} else {
+			config.ConnectionString += "?timezone=utc"
+		}
+	} else {
+		config.ConnectionString += " timezone=utc"
+	}
+
+	dbconn, err := sql.Open(config.DBType, config.ConnectionString)
+	if err != nil {
+		return err
+	}
+	
+	b.dbs[name] = dbconn
+
+	// Set the connection pool settings based on settings.
+	b.dbs[name].SetMaxOpenConns(config.MaxOpenConnections)
+	b.dbs[name].SetMaxIdleConns(config.MaxIdleConnections)
+	
+	return nil
 }
+
+// ResetDB forces a connection on the next call to DBConnection()
+func (b *backend) ResetDB(name string) {
+	b.logger.Trace("db/resetdb: enter")
+	defer b.logger.Trace("db/resetdb: exit")
+
+	b.lock.Lock()
+	defer b.lock.Unlock()
+
+	if b.dbs[name] != nil {
+		b.dbs[name].Close()
+	}
+
+	b.dbs[name] = nil
+}
+
 
 func (b *backend) Lease(s logical.Storage) (*configLease, error) {
 	entry, err := s.Get("config/lease")
