@@ -45,8 +45,10 @@ func prepareTestContainer(t *testing.T, s logical.Storage, b logical.Backend) (c
 			Path:      "dbs/test",
 			Data: map[string]interface{}{
 				"connection_string": connURL,
+				"database_type":     "postgres",
 			},
 		})
+
 		if err != nil || (resp != nil && resp.IsError()) {
 			// It's likely not up and running yet, so return false and try again
 			return false
@@ -84,6 +86,7 @@ func TestBackend_config_connection(t *testing.T) {
 	}
 
 	configData := map[string]interface{}{
+		"name":                    "test",
 		"database_type":           "postgres",
 		"connection_string":       "sample_connection_url",
 		"max_open_connections":    9,
@@ -123,23 +126,28 @@ func TestBackend_basic(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	log.Printf("[TRACE] prepareTestContainer")
 	cid, connURL := prepareTestContainer(t, config.StorageView, b)
 	if cid != "" {
+		log.Printf("[TRACE] cleanupTestContainer")
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
+		"name":              "test",
 		"connection_string": connURL,
-		"database_type":           "postgres",
-		"verify_connection":       true,
-		"allowed_roles":           "",
+		"database_type":     "postgres",
+		"verify_connection": true,
+		"allowed_roles":     "",
 	}
 
+	log.Printf("[TRACE] connURL: %s", connURL)
+	
 	logicaltest.Test(t, logicaltest.TestCase{
 		Backend: b,
 		Steps: []logicaltest.TestStep{
 			testAccStepConfig(t, connData, false),
-			//testAccStepCreateRole(t, "web", testRole, false),
-			//testAccStepReadCreds(t, b, config.StorageView, "web", connURL),
+			testAccStepCreateRole(t, "web", testRole, false),
+			testAccStepReadCreds(t, b, config.StorageView, "web", connURL),
 		},
 	})
 }
@@ -157,7 +165,8 @@ func TestBackend_roleCrud(t *testing.T) {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"connection_string": connURL,
+		"name":                    "test",
+		"connection_string":       connURL,
 		"database_type":           "postgres",
 		"verify_connection":       false,
 		"allowed_roles":           "",
@@ -188,7 +197,8 @@ func TestBackend_BlockStatements(t *testing.T) {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"connection_string": connURL,
+		"name":                    "test",
+		"connection_string":       connURL,
 		"database_type":           "postgres",
 		"verify_connection":       false,
 		"allowed_roles":           "",
@@ -223,7 +233,8 @@ func TestBackend_roleReadOnly(t *testing.T) {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"connection_string": connURL,
+		"name":                    "test",
+		"connection_string":       connURL,
 		"database_type":           "postgres",
 		"verify_connection":       false,
 		"allowed_roles":           "",
@@ -281,6 +292,7 @@ func testAccStepCreateRole(t *testing.T, name string, sql string, expectFail boo
 		Path:      path.Join("roles", name),
 		Data: map[string]interface{}{
 			"sql": sql,
+			"db_name": "test",
 		},
 		ErrorOk: expectFail,
 	}

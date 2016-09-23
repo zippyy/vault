@@ -124,7 +124,7 @@ func (b *backend) pathConnectionWrite(
 	if verifyConn {
 		// Verify the string
 		switch dbType {
-		case "postgresql":
+		case "postgres":
 			err := verifyConnection(dbType, connStr)
 			if err != "" {
 				return logical.ErrorResponse(err), nil

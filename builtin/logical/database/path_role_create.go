@@ -90,6 +90,16 @@ func (b *backend) pathRoleCreateRead(
 
 	// Start a transaction
 	b.logger.Trace("[TRACE] db/pathRoleCreateRead: starting transaction")
+	
+	if b.dbs[db_name] == nil {
+		b.logger.Trace("[TRACE] b.dbs[%s] is not connected.", db_name)
+		// Get our connection
+		err = b.DBConnection(req.Storage, db_name)
+		
+		return nil, err
+	}
+	
+	b.logger.Trace("[TRACE] b.dbs[%s] starting transaction.", db_name)
 	tx, err := b.dbs[db_name].Begin()
 	if err != nil {
 		return nil, err

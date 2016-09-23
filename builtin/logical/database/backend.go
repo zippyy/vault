@@ -69,7 +69,7 @@ func (b *backend) DBConnection(s logical.Storage, name string) (error) {
 			return err
 		}
 		if entry == nil {
-			return fmt.Errorf("configure the DB connection with sql/db first")
+			return fmt.Errorf("configure the DB connection with dbs/<name> first")
 		}
 		if err := entry.DecodeJSON(&config); err == nil {
 			return err
