@@ -91,6 +91,8 @@ func (b *backend) pathConnectionRead(req *logical.Request, data *framework.Field
 
 func (b *backend) pathConnectionWrite(
 	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
+	b.logger.Trace("[TRACE] db/pathConnectionWrite: enter")
+	defer b.logger.Trace("[TRACE] db/pathConnectionWrite: exit")
 	dbName := data.Get("name").(string)
 	
 	connStr := data.Get("connection_string").(string)

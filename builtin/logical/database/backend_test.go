@@ -136,7 +136,7 @@ func TestBackend_basic(t *testing.T) {
 		"name":              "test",
 		"connection_string": connURL,
 		"database_type":     "postgres",
-		"verify_connection": true,
+		"verify_connection": false,
 		"allowed_roles":     "",
 	}
 
