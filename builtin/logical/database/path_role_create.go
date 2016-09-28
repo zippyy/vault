@@ -20,10 +20,6 @@ func pathRoleCreate(b *backend) *framework.Path {
 				Type:        framework.TypeString,
 				Description: "Name of the role.",
 			},
-			"db_name": &framework.FieldSchema{
-				Type:        framework.TypeString,
-				Description: "Name of the database for creds.",
-			},
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{

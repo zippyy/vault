@@ -52,7 +52,7 @@ type backend struct {
 	logger log.Logger
 }
 
-func (b *backend) DBConnection(s logical.Storage, name string) (error) {
+func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) {
 	b.logger.Trace("db: enter")
 	defer b.logger.Trace("db: exit")
 
@@ -66,20 +66,20 @@ func (b *backend) DBConnection(s logical.Storage, name string) (error) {
 		// Attempt to find connection
 		entry, err := s.Get("dbs/"+name)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		if entry == nil {
-			return fmt.Errorf("configure the DB connection with dbs/<name> first")
+			return nil, fmt.Errorf("configure the DB connection with dbs/<name> first")
 		}
 		if err := entry.DecodeJSON(&config); err == nil {
-			return err
+			return nil, err
 		}
 	}
 	
 	// If the connection exists, move on
 	if b.dbs[name] != nil {
 		if err := b.dbs[name].Ping(); err == nil {
-			return nil
+			return b.dbs[name], nil
 		}
 		// If the ping was unsuccessful, close it and ignore errors
 		// in favor of attempting to reestablish the connection
@@ -99,7 +99,7 @@ func (b *backend) DBConnection(s logical.Storage, name string) (error) {
 
 	dbconn, err := sql.Open(config.DBType, config.ConnectionString)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	
 	b.dbs[name] = dbconn
@@ -108,7 +108,7 @@ func (b *backend) DBConnection(s logical.Storage, name string) (error) {
 	b.dbs[name].SetMaxOpenConns(config.MaxOpenConnections)
 	b.dbs[name].SetMaxIdleConns(config.MaxIdleConnections)
 	
-	return nil
+	return b.dbs[name], nil
 }
 
 // ResetDB forces a connection on the next call to DBConnection()

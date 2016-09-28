@@ -1,6 +1,10 @@
 package database
 
 import (
+	"fmt"
+	"strings"
+
+	"github.com/hashicorp/vault/helper/strutil"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 )
@@ -30,6 +34,11 @@ func pathRoles(b *backend) *framework.Path {
 			"sql": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Description: "SQL string to create a user. See help for more info.",
+			},
+			
+			"db_name": &framework.FieldSchema{
+				Type:        framework.TypeString,
+				Description: "Name of the database associated with the role.",
 			},
 		},
 
@@ -102,35 +111,37 @@ func (b *backend) pathRoleCreate(
 	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	name := data.Get("name").(string)
 	sql := data.Get("sql").(string)
+	db_name := data.Get("db_name").(string)
 
 	// Get our connection
-	//	db, err := b.DBConnection(req.Storage, db_name)
-	//	if err != nil {
-	//		return nil, err
-	//	}
+	tx, err := b.DBConnection(req.Storage, db_name)
+	if err != nil {
+		return nil, err
+	}
 
 	// Test the query by trying to prepare it
-	//	for _, query := range strutil.ParseArbitraryStringSlice(sql, ";") {
-	//		query = strings.TrimSpace(query)
-	//		if len(query) == 0 {
-	//			continue
-	//		}
+	for _, query := range strutil.ParseArbitraryStringSlice(sql, ";") {
+		query = strings.TrimSpace(query)
+		if len(query) == 0 {
+			continue
+		}
 
-	//		stmt, err := db.Prepare(Query(query, map[string]string{
-	//			"name":       "foo",
-	//			"password":   "bar",
-	//			"expiration": "",
-	//		}))
-	//		if err != nil {
-	//			return logical.ErrorResponse(fmt.Sprintf(
-	//				"Error testing query: %s", err)), nil
-	//		}
-	//		stmt.Close()
-	//	}
+		stmt, err := tx.Prepare(Query(query, map[string]string{
+			"name":       "foo",
+			"password":   "bar",
+			"expiration": "",
+		}))
+		if err != nil {
+			return logical.ErrorResponse(fmt.Sprintf(
+				"Error testing query: %s", err)), nil
+		}
+		stmt.Close()
+	}
 
 	// Store it
 	entry, err := logical.StorageEntryJSON("role/"+name, &roleEntry{
-		SQL: sql,
+		SQL:    sql,
+		DBName: db_name,
 	})
 	if err != nil {
 		return nil, err
@@ -143,7 +154,11 @@ func (b *backend) pathRoleCreate(
 }
 
 type roleEntry struct {
-	SQL string `json:"sql"`
+	// SQL statement for the role
+	SQL    string `json:"sql"`
+	
+	// Name of database that will use the role
+	DBName string `json:"db_name"`
 }
 
 const pathRoleHelpSyn = `
