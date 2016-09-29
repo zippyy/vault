@@ -114,7 +114,7 @@ func (b *backend) pathRoleCreate(
 	db_name := data.Get("db_name").(string)
 
 	// Get our connection
-	tx, err := b.DBConnection(req.Storage, db_name)
+	dbconn, err := b.DBConnection(req.Storage, db_name)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +126,7 @@ func (b *backend) pathRoleCreate(
 			continue
 		}
 
-		stmt, err := tx.Prepare(Query(query, map[string]string{
+		stmt, err := dbconn.Prepare(Query(query, map[string]string{
 			"name":       "foo",
 			"password":   "bar",
 			"expiration": "",

@@ -95,6 +95,8 @@ func (b *backend) pathConnectionWrite(
 	defer b.logger.Trace("[TRACE] db/pathConnectionWrite: exit")
 	dbName := data.Get("name").(string)
 	
+	b.dbs[dbName] = nil
+	
 	connStr := data.Get("connection_string").(string)
 	if connStr == "" {
 		return logical.ErrorResponse("connection_string parameter must be supplied"), nil

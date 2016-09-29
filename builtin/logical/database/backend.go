@@ -58,23 +58,21 @@ func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) 
 
 	b.lock.Lock()
 	defer b.lock.Unlock()
-
-	var config SqlConfig
 	
-	// If don't have a database, error
-	if b.dbs[name] == nil {
-		// Attempt to find connection
-		entry, err := s.Get("dbs/"+name)
-		if err != nil {
-			return nil, err
-		}
-		if entry == nil {
-			return nil, fmt.Errorf("configure the DB connection with dbs/<name> first")
-		}
-		if err := entry.DecodeJSON(&config); err == nil {
-			return nil, err
-		}
+	// Attempt to find connection configuration
+	entry, err := s.Get("dbs/"+name)
+	if err != nil {
+		return nil, err
 	}
+	if entry == nil {
+		return nil, fmt.Errorf("configure the DB connection with dbs/<name> first")
+	}
+	
+	var config SqlConfig
+	if err := entry.DecodeJSON(&config); err == nil {
+		return nil, err
+	}
+	
 	
 	// If the connection exists, move on
 	if b.dbs[name] != nil {
@@ -99,16 +97,16 @@ func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) 
 
 	dbconn, err := sql.Open(config.DBType, config.ConnectionString)
 	if err != nil {
+		b.dbs[name] = nil
 		return nil, err
 	}
 	
-	b.dbs[name] = dbconn
-
 	// Set the connection pool settings based on settings.
-	b.dbs[name].SetMaxOpenConns(config.MaxOpenConnections)
-	b.dbs[name].SetMaxIdleConns(config.MaxIdleConnections)
+	dbconn.SetMaxOpenConns(config.MaxOpenConnections)
+	dbconn.SetMaxIdleConns(config.MaxIdleConnections)
+	b.dbs[name] = dbconn
 	
-	return b.dbs[name], nil
+	return dbconn, nil
 }
 
 // ResetDB forces a connection on the next call to DBConnection()
