@@ -62,6 +62,7 @@ func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) 
 	// Attempt to find connection configuration
 	entry, err := s.Get("dbs/"+name)
 	if err != nil {
+		fmt.Println("can't find dbs/%s", name)
 		return nil, err
 	}
 	if entry == nil {
@@ -69,7 +70,7 @@ func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) 
 	}
 	
 	var config SqlConfig
-	if err := entry.DecodeJSON(&config); err == nil {
+	if err := entry.DecodeJSON(&config); err != nil {
 		return nil, err
 	}
 	
@@ -106,7 +107,7 @@ func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) 
 	dbconn.SetMaxIdleConns(config.MaxIdleConnections)
 	b.dbs[name] = dbconn
 	
-	return dbconn, nil
+	return b.dbs[name], nil
 }
 
 // ResetDB forces a connection on the next call to DBConnection()

@@ -110,22 +110,23 @@ func (b *backend) pathRoleList(
 func (b *backend) pathRoleCreate(
 	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	name := data.Get("name").(string)
-	sql := data.Get("sql").(string)
-	db_name := data.Get("db_name").(string)
-
+	sqlstmt := data.Get("sql").(string)
+	dbname := data.Get("db_name").(string)
+	
 	// Get our connection
-	dbconn, err := b.DBConnection(req.Storage, db_name)
-	if err != nil {
+	dbconn, err := b.DBConnection(req.Storage, dbname)
+	if dbconn == nil {
+		b.logger.Trace("[TRACE] b.dbs[%s] is not connected.", dbname)
 		return nil, err
 	}
 
 	// Test the query by trying to prepare it
-	for _, query := range strutil.ParseArbitraryStringSlice(sql, ";") {
+	for _, query := range strutil.ParseArbitraryStringSlice(sqlstmt, ";") {
 		query = strings.TrimSpace(query)
 		if len(query) == 0 {
 			continue
 		}
-
+		
 		stmt, err := dbconn.Prepare(Query(query, map[string]string{
 			"name":       "foo",
 			"password":   "bar",
@@ -140,8 +141,8 @@ func (b *backend) pathRoleCreate(
 
 	// Store it
 	entry, err := logical.StorageEntryJSON("role/"+name, &roleEntry{
-		SQL:    sql,
-		DBName: db_name,
+		SQL:    sqlstmt,
+		DBName: dbname,
 	})
 	if err != nil {
 		return nil, err
