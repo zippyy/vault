@@ -36,7 +36,6 @@ func (b *backend) pathRoleCreateRead(
 	b.logger.Trace("[TRACE] db/pathRoleCreateRead: enter")
 	defer b.logger.Trace("[TRACE] db/pathRoleCreateRead: exit")
 	name := data.Get("name").(string)
-	db_name := data.Get("db_name").(string)
 
 	// Get the role
 	b.logger.Trace("[TRACE] db/pathRoleCreateRead: getting role")
@@ -84,18 +83,14 @@ func (b *backend) pathRoleCreateRead(
 		Add(lease.Lease).
 		Format("2006-01-02 15:04:05-0700")
 
-	// Start a transaction
-	b.logger.Trace("[TRACE] db/pathRoleCreateRead: starting transaction")
-	
-	b.logger.Trace("[TRACE] b.dbs[%s] is not connected.", db_name)
 	// Get our connection
-	dbconn, err := b.DBConnection(req.Storage, db_name)
-		
+	b.logger.Trace("db/pathRoleCreateRead: getting database handle")
+	dbconn, err := b.DBConnection(req.Storage, role.DBName)
 	if err != nil {
 		return nil, err
 	}
 	
-	b.logger.Trace("[TRACE] b.dbs[%s] starting transaction.", db_name)
+	b.logger.Trace("[TRACE] b.dbs[%s] starting transaction.", role.DBName)
 	tx, err := dbconn.Begin()
 	if err != nil {
 		return nil, err
@@ -141,8 +136,10 @@ func (b *backend) pathRoleCreateRead(
 	resp := b.Secret(SecretCredsType).Response(map[string]interface{}{
 		"username": username,
 		"password": password,
+		"database_name": role.DBName,
 	}, map[string]interface{}{
 		"username": username,
+		"database_name": role.DBName,
 	})
 	resp.Secret.TTL = lease.Lease
 	return resp, nil

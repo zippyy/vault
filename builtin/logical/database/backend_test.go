@@ -147,7 +147,7 @@ func TestBackend_basic(t *testing.T) {
 		Steps: []logicaltest.TestStep{
 			testAccStepConfig(t, connData, false),
 			testAccStepCreateRole(t, "web", testRole, false),
-//			testAccStepReadCreds(t, b, config.StorageView, "web", connURL),
+			testAccStepReadCreds(t, b, config.StorageView, "web", connURL),
 		},
 	})
 }
@@ -312,6 +312,7 @@ func testAccStepReadCreds(t *testing.T, b logical.Backend, s logical.Storage, na
 			var d struct {
 				Username string `mapstructure:"username"`
 				Password string `mapstructure:"password"`
+				DBName   string `mapstructure:"database_name"`
 			}
 			if err := mapstructure.Decode(resp.Data, &d); err != nil {
 				return err
@@ -363,8 +364,9 @@ func testAccStepReadCreds(t *testing.T, b logical.Backend, s logical.Storage, na
 				Storage:   s,
 				Secret: &logical.Secret{
 					InternalData: map[string]interface{}{
-						"secret_type": "creds",
-						"username":    d.Username,
+						"secret_type":   "creds",
+						"username":      d.Username,
+						"database_name": d.DBName,
 					},
 				},
 			})
@@ -396,6 +398,7 @@ func testAccStepCreateTable(t *testing.T, b logical.Backend, s logical.Storage, 
 			var d struct {
 				Username string `mapstructure:"username"`
 				Password string `mapstructure:"password"`
+				DBName string `mapstructure:"database_name"`
 			}
 			if err := mapstructure.Decode(resp.Data, &d); err != nil {
 				return err
@@ -451,6 +454,7 @@ func testAccStepDropTable(t *testing.T, b logical.Backend, s logical.Storage, na
 			var d struct {
 				Username string `mapstructure:"username"`
 				Password string `mapstructure:"password"`
+				DBName string `mapstructure:"database_name"`
 			}
 			if err := mapstructure.Decode(resp.Data, &d); err != nil {
 				return err
@@ -513,6 +517,7 @@ func testAccStepReadRole(t *testing.T, name string, sql string) logicaltest.Test
 
 			var d struct {
 				SQL string `mapstructure:"sql"`
+				DBName string `mapstructure:"db_name"`
 			}
 			if err := mapstructure.Decode(resp.Data, &d); err != nil {
 				return err
