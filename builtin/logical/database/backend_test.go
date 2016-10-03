@@ -23,7 +23,7 @@ var (
 	testImagePull sync.Once
 )
 
-func prepareTestContainer(t *testing.T, s logical.Storage, b logical.Backend) (cid dockertest.ContainerID, retURL string) {
+func prepareTestContainer(t *testing.T, name string, s logical.Storage, b logical.Backend) (cid dockertest.ContainerID, retURL string) {
 	if os.Getenv("PG_URL") != "" {
 		return "", os.Getenv("PG_URL")
 	}
@@ -36,13 +36,15 @@ func prepareTestContainer(t *testing.T, s logical.Storage, b logical.Backend) (c
 	testImagePull.Do(func() {
 		dockertest.Pull("postgres")
 	})
+	
+	db_path := path.Join("dbs", name)
 
 	cid, connErr := dockertest.ConnectToPostgreSQL(60, 500*time.Millisecond, func(connURL string) bool {
 		// This will cause a validation to run
 		resp, err := b.HandleRequest(&logical.Request{
 			Storage:   s,
 			Operation: logical.UpdateOperation,
-			Path:      "dbs/test",
+			Path:      db_path,
 			Data: map[string]interface{}{
 				"connection_string": connURL,
 				"database_type":     "postgres",
@@ -126,7 +128,7 @@ func TestBackend_basic(t *testing.T) {
 	}
 
 	log.Printf("[TRACE] prepareTestContainer")
-	cid, connURL := prepareTestContainer(t, config.StorageView, b)
+	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
 	if cid != "" {
 		log.Printf("[TRACE] cleanupTestContainer")
 		defer cleanupTestContainer(t, cid)
@@ -140,14 +142,38 @@ func TestBackend_basic(t *testing.T) {
 
 	log.Printf("[TRACE] connURL: %s", connURL)
 	
-	TestBackend_config_connection(t)
-	
+	// Add second database
+	config2 := logical.TestBackendConfig()
+	config2.StorageView = &logical.InmemStorage{}
+	b2, err := Factory(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	log.Printf("[TRACE] prepareTestContainer")
+	cid2, connURL2 := prepareTestContainer(t, "test2", config2.StorageView, b2)
+	if cid2 != "" {
+		log.Printf("[TRACE] cleanupTestContainer")
+		defer cleanupTestContainer(t, cid2)
+	}
+	connData2 := map[string]interface{}{
+		"connection_string": connURL2,
+		"database_type":     "postgres",
+		"verify_connection": false,
+		"allowed_roles":     "",
+	}
+
+	log.Printf("[TRACE] connURL2: %s", connURL)
+
 	logicaltest.Test(t, logicaltest.TestCase{
 		Backend: b,
 		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, connData, false),
-			testAccStepCreateRole(t, "web", testRole, false),
+			testAccStepConfig(t, "test1", connData, false),
+			testAccStepConfig(t, "test2", connData2, false),
+			testAccStepCreateRole(t, "web", "test1", testRole, false),
+			testAccStepCreateRole(t, "web2", "test2", testRole, false),
 			testAccStepReadCreds(t, b, config.StorageView, "web", connURL),
+			testAccStepReadCreds(t, b, config.StorageView, "web2", connURL2),
 		},
 	})
 }
@@ -160,7 +186,7 @@ func TestBackend_roleCrud(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cid, connURL := prepareTestContainer(t, config.StorageView, b)
+	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
 	if cid != "" {
 		defer cleanupTestContainer(t, cid)
 	}
@@ -174,8 +200,8 @@ func TestBackend_roleCrud(t *testing.T) {
 	logicaltest.Test(t, logicaltest.TestCase{
 		Backend: b,
 		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, connData, false),
-			testAccStepCreateRole(t, "web", testRole, false),
+			testAccStepConfig(t, "test1", connData, false),
+			testAccStepCreateRole(t, "web", "test1", testRole, false),
 			testAccStepReadRole(t, "web", testRole),
 			testAccStepDeleteRole(t, "web"),
 			testAccStepReadRole(t, "web", ""),
@@ -191,13 +217,22 @@ func TestBackend_BlockStatements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cid, connURL := prepareTestContainer(t, config.StorageView, b)
+	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
 	if cid != "" {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"name":                    "test",
 		"connection_string":       connURL,
+		"database_type":           "postgres",
+		"verify_connection":       false,
+		"allowed_roles":           "",
+	}
+	cid2, connURL2 := prepareTestContainer(t, "test2", config.StorageView, b)
+	if cid2 != "" {
+		defer cleanupTestContainer(t, cid2)
+	}
+	connData2 := map[string]interface{}{
+		"connection_string":       connURL2,
 		"database_type":           "postgres",
 		"verify_connection":       false,
 		"allowed_roles":           "",
@@ -211,10 +246,13 @@ func TestBackend_BlockStatements(t *testing.T) {
 	logicaltest.Test(t, logicaltest.TestCase{
 		Backend: b,
 		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, connData, false),
+			testAccStepConfig(t, "test1", connData, false),
+			testAccStepConfig(t, "test2", connData2, false),
 			// This will also validate the query
-			testAccStepCreateRole(t, "web-block", testBlockStatementRole, true),
-			testAccStepCreateRole(t, "web-block", string(jsonBlockStatement), false),
+			testAccStepCreateRole(t, "web-block", "test1", testBlockStatementRole, true),
+			testAccStepCreateRole(t, "web-block", "test2", testBlockStatementRole, true),
+			testAccStepCreateRole(t, "web-block", "test1", string(jsonBlockStatement), false),
+			testAccStepCreateRole(t, "web-block", "test2", string(jsonBlockStatement), false),
 		},
 	})
 }
@@ -227,12 +265,11 @@ func TestBackend_roleReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cid, connURL := prepareTestContainer(t, config.StorageView, b)
+	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
 	if cid != "" {
 		defer cleanupTestContainer(t, cid)
 	}
 	connData := map[string]interface{}{
-		"name":                    "test",
 		"connection_string":       connURL,
 		"database_type":           "postgres",
 		"verify_connection":       false,
@@ -242,9 +279,9 @@ func TestBackend_roleReadOnly(t *testing.T) {
 	logicaltest.Test(t, logicaltest.TestCase{
 		Backend: b,
 		Steps: []logicaltest.TestStep{
-			testAccStepConfig(t, connData, false),
-			testAccStepCreateRole(t, "web", testRole, false),
-			testAccStepCreateRole(t, "web-readonly", testReadOnlyRole, false),
+			testAccStepConfig(t, "test1", connData, false),
+			testAccStepCreateRole(t, "web", "test1", testRole, false),
+			testAccStepCreateRole(t, "web-readonly", "test1", testReadOnlyRole, false),
 			testAccStepReadRole(t, "web-readonly", testReadOnlyRole),
 			testAccStepCreateTable(t, b, config.StorageView, "web", connURL),
 			testAccStepReadCreds(t, b, config.StorageView, "web-readonly", connURL),
@@ -256,10 +293,10 @@ func TestBackend_roleReadOnly(t *testing.T) {
 	})
 }
 
-func testAccStepConfig(t *testing.T, d map[string]interface{}, expectError bool) logicaltest.TestStep {
+func testAccStepConfig(t *testing.T, name string, d map[string]interface{}, expectError bool) logicaltest.TestStep {
 	return logicaltest.TestStep{
 		Operation: logical.UpdateOperation,
-		Path:      "dbs/test",
+		Path:      path.Join("dbs", name),
 		Data:      d,
 		ErrorOk:   true,
 		Check: func(resp *logical.Response) error {
@@ -285,13 +322,13 @@ func testAccStepConfig(t *testing.T, d map[string]interface{}, expectError bool)
 	}
 }
 
-func testAccStepCreateRole(t *testing.T, name string, sql string, expectFail bool) logicaltest.TestStep {
+func testAccStepCreateRole(t *testing.T, name string, db_name string, sql string, expectFail bool) logicaltest.TestStep {
 	return logicaltest.TestStep{
 		Operation: logical.UpdateOperation,
 		Path:      path.Join("roles", name),
 		Data: map[string]interface{}{
 			"sql":           sql,
-			"database_name": "test",
+			"database_name": "test1",
 		},
 		ErrorOk: expectFail,
 	}
