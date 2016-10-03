@@ -48,12 +48,12 @@ func (b *backend) secretCredsRenew(
 	// Get the database name from the internal data
 	db_nameRaw, ok := req.Secret.InternalData["database_name"]
 	if !ok {
-		return nil, fmt.Errorf("secret is missing database name internal data")
+		return nil, fmt.Errorf("secret is missing database name internal data for renew")
 	}
 	db_name, ok := db_nameRaw.(string)
 	
 	// Get our connection
-	db, err := b.DBConnection(req.Storage, db_name)
+	dbconn, err := b.DBConnection(req.Storage, db_name)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +81,7 @@ func (b *backend) secretCredsRenew(
 			"ALTER ROLE %s VALID UNTIL '%s';",
 			pq.QuoteIdentifier(username),
 			expiration)
-		stmt, err := db.Prepare(query)
+		stmt, err := dbconn.Prepare(query)
 		if err != nil {
 			return nil, err
 		}
@@ -106,20 +106,19 @@ func (b *backend) secretCredsRevoke(
 	// Get the database name from the internal data
 	db_nameRaw, ok := req.Secret.InternalData["database_name"]
 	if !ok {
-		return nil, fmt.Errorf("secret is missing database name from internal data")
+		return nil, fmt.Errorf("secret is missing database name from internal data for revoke")
 	}
 	db_name, ok := db_nameRaw.(string)
-	fmt.Println("DATABASE NAME: ", db_name)
 
 	// Get our connection
-	db, err := b.DBConnection(req.Storage, db_name)
+	dbconn, err := b.DBConnection(req.Storage, db_name)
 	if err != nil {
 		return nil, err
 	}
 
 	// Check if the role exists
 	var exists bool
-	err = db.QueryRow("SELECT exists (SELECT rolname FROM pg_roles WHERE rolname=$1);", username).Scan(&exists)
+	err = dbconn.QueryRow("SELECT exists (SELECT rolname FROM pg_roles WHERE rolname=$1);", username).Scan(&exists)
 	if err != nil && err != sql.ErrNoRows {
 		return nil, err
 	}
@@ -132,7 +131,7 @@ func (b *backend) secretCredsRevoke(
 	// the role
 	// This isn't done in a transaction because even if we fail along the way,
 	// we want to remove as much access as possible
-	stmt, err := db.Prepare("SELECT DISTINCT table_schema FROM information_schema.role_column_grants WHERE grantee=$1;")
+	stmt, err := dbconn.Prepare("SELECT DISTINCT table_schema FROM information_schema.role_column_grants WHERE grantee=$1;")
 	if err != nil {
 		return nil, err
 	}
@@ -180,7 +179,7 @@ func (b *backend) secretCredsRevoke(
 	// get the current database name so we can issue a REVOKE CONNECT for
 	// this username
 	var dbname sql.NullString
-	if err := db.QueryRow("SELECT current_database();").Scan(&dbname); err != nil {
+	if err := dbconn.QueryRow("SELECT current_database();").Scan(&dbname); err != nil {
 		return nil, err
 	}
 
@@ -195,7 +194,7 @@ func (b *backend) secretCredsRevoke(
 	// many permissions as possible right now
 	var lastStmtError error
 	for _, query := range revocationStmts {
-		stmt, err := db.Prepare(query)
+		stmt, err := dbconn.Prepare(query)
 		if err != nil {
 			lastStmtError = err
 			continue
@@ -216,7 +215,7 @@ func (b *backend) secretCredsRevoke(
 	}
 
 	// Drop this user
-	stmt, err = db.Prepare(fmt.Sprintf(
+	stmt, err = dbconn.Prepare(fmt.Sprintf(
 		`DROP ROLE IF EXISTS %s;`, pq.QuoteIdentifier(username)))
 	if err != nil {
 		return nil, err

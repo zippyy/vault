@@ -36,7 +36,7 @@ func pathRoles(b *backend) *framework.Path {
 				Description: "SQL string to create a user. See help for more info.",
 			},
 			
-			"db_name": &framework.FieldSchema{
+			"database_name": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Description: "Name of the database associated with the role.",
 			},
@@ -92,7 +92,8 @@ func (b *backend) pathRoleRead(
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"sql": role.SQL,
+			"sql":           role.SQL,
+			"database_name": role.DBName,
 		},
 	}, nil
 }
@@ -111,12 +112,12 @@ func (b *backend) pathRoleCreate(
 	req *logical.Request, data *framework.FieldData) (*logical.Response, error) {
 	name := data.Get("name").(string)
 	sqlstmt := data.Get("sql").(string)
-	dbname := data.Get("db_name").(string)
+	db_name := data.Get("database_name").(string)
 	
 	// Get our connection
-	dbconn, err := b.DBConnection(req.Storage, dbname)
+	dbconn, err := b.DBConnection(req.Storage, db_name)
 	if dbconn == nil {
-		b.logger.Trace("[TRACE] b.dbs[%s] is not connected.", dbname)
+		b.logger.Trace("[TRACE] b.dbs[%s] is not connected.", db_name)
 		return nil, err
 	}
 
@@ -142,7 +143,7 @@ func (b *backend) pathRoleCreate(
 	// Store it
 	entry, err := logical.StorageEntryJSON("role/"+name, &roleEntry{
 		SQL:    sqlstmt,
-		DBName: dbname,
+		DBName: db_name,
 	})
 	if err != nil {
 		return nil, err
@@ -159,7 +160,7 @@ type roleEntry struct {
 	SQL    string `json:"sql"`
 	
 	// Name of database that will use the role
-	DBName string `json:"db_name"`
+	DBName string `json:"database_name"`
 }
 
 const pathRoleHelpSyn = `

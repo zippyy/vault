@@ -90,7 +90,7 @@ func (b *backend) pathRoleCreateRead(
 		return nil, err
 	}
 	
-	b.logger.Trace("[TRACE] b.dbs[%s] starting transaction.", role.DBName)
+	b.logger.Trace("[TRACE] starting transaction for", role.DBName)
 	tx, err := dbconn.Begin()
 	if err != nil {
 		return nil, err
