@@ -143,17 +143,10 @@ func TestBackend_basic(t *testing.T) {
 	log.Printf("[TRACE] connURL: %s", connURL)
 	
 	// Add second database
-	config2 := logical.TestBackendConfig()
-	config2.StorageView = &logical.InmemStorage{}
-	b2, err := Factory(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	log.Printf("[TRACE] prepareTestContainer")
-	cid2, connURL2 := prepareTestContainer(t, "test2", config2.StorageView, b2)
+	log.Printf("[TRACE] second prepareTestContainer")
+	cid2, connURL2 := prepareTestContainer(t, "test2", config.StorageView, b)
 	if cid2 != "" {
-		log.Printf("[TRACE] cleanupTestContainer")
+		log.Printf("[TRACE] second cleanupTestContainer")
 		defer cleanupTestContainer(t, cid2)
 	}
 	connData2 := map[string]interface{}{
@@ -328,7 +321,7 @@ func testAccStepCreateRole(t *testing.T, name string, db_name string, sql string
 		Path:      path.Join("roles", name),
 		Data: map[string]interface{}{
 			"sql":           sql,
-			"database_name": "test1",
+			"database_name": db_name,
 		},
 		ErrorOk: expectFail,
 	}
