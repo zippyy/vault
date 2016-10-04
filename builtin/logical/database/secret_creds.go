@@ -15,17 +15,17 @@ func secretCreds(b *backend) *framework.Secret {
 	return &framework.Secret{
 		Type: SecretCredsType,
 		Fields: map[string]*framework.FieldSchema{
-			"username": &framework.FieldSchema{
+			"username": {
 				Type:        framework.TypeString,
 				Description: "Username",
 			},
 
-			"password": &framework.FieldSchema{
+			"password": {
 				Type:        framework.TypeString,
 				Description: "Password",
 			},
 			
-			"database_name": &framework.FieldSchema{
+			"database_name": {
 				Type:        framework.TypeString,
 				Description: "Database name for creds",
 			},

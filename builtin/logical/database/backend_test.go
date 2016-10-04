@@ -23,7 +23,7 @@ var (
 	testImagePull sync.Once
 )
 
-func prepareTestContainer(t *testing.T, name string, s logical.Storage, b logical.Backend) (cid dockertest.ContainerID, retURL string) {
+func prepareTestContainerPostgres(t *testing.T, name string, s logical.Storage, b logical.Backend) (cid dockertest.ContainerID, retURL string) {
 	if os.Getenv("PG_URL") != "" {
 		return "", os.Getenv("PG_URL")
 	}
@@ -51,6 +51,52 @@ func prepareTestContainer(t *testing.T, name string, s logical.Storage, b logica
 			},
 		})
 
+		if err != nil || (resp != nil && resp.IsError()) {
+			// It's likely not up and running yet, so return false and try again
+			return false
+		}
+		if resp == nil {
+			t.Fatal("expected warning")
+		}
+
+		retURL = connURL
+		return true
+	})
+
+	if connErr != nil {
+		t.Fatalf("could not connect to database: %v", connErr)
+	}
+
+	return
+}
+
+func prepareTestContainerMySQL(t *testing.T, name string, s logical.Storage, b logical.Backend) (cid dockertest.ContainerID, retURL string) {
+	if os.Getenv("MYSQL_DSN") != "" {
+		return "", os.Getenv("MYSQL_DSN")
+	}
+
+	// Without this the checks for whether the container has started seem to
+	// never actually pass. There's really no reason to expose the test
+	// containers, so don't.
+	dockertest.BindDockerToLocalhost = "yep"
+
+	testImagePull.Do(func() {
+		dockertest.Pull("mysql")
+	})
+	
+	db_path := path.Join("dbs", name)
+
+	cid, connErr := dockertest.ConnectToMySQL(60, 500*time.Millisecond, func(connURL string) bool {
+		// This will cause a validation to run
+		resp, err := b.HandleRequest(&logical.Request{
+			Storage:   s,
+			Operation: logical.UpdateOperation,
+			Path:      db_path,
+			Data: map[string]interface{}{
+				"connection_url": connURL,
+				"database_type":  "mysql",
+			},
+		})
 		if err != nil || (resp != nil && resp.IsError()) {
 			// It's likely not up and running yet, so return false and try again
 			return false
@@ -128,7 +174,7 @@ func TestBackend_basic(t *testing.T) {
 	}
 
 	log.Printf("[TRACE] prepareTestContainer")
-	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
+	cid, connURL := prepareTestContainerPostgres(t, "test1", config.StorageView, b)
 	if cid != "" {
 		log.Printf("[TRACE] cleanupTestContainer")
 		defer cleanupTestContainer(t, cid)
@@ -136,7 +182,7 @@ func TestBackend_basic(t *testing.T) {
 	connData := map[string]interface{}{
 		"connection_string": connURL,
 		"database_type":     "postgres",
-		"verify_connection": false,
+		"verify_connection": true,
 		"allowed_roles":     "",
 	}
 
@@ -144,7 +190,7 @@ func TestBackend_basic(t *testing.T) {
 	
 	// Add second database
 	log.Printf("[TRACE] second prepareTestContainer")
-	cid2, connURL2 := prepareTestContainer(t, "test2", config.StorageView, b)
+	cid2, connURL2 := prepareTestContainerPostgres(t, "test2", config.StorageView, b)
 	if cid2 != "" {
 		log.Printf("[TRACE] second cleanupTestContainer")
 		defer cleanupTestContainer(t, cid2)
@@ -152,7 +198,7 @@ func TestBackend_basic(t *testing.T) {
 	connData2 := map[string]interface{}{
 		"connection_string": connURL2,
 		"database_type":     "postgres",
-		"verify_connection": false,
+		"verify_connection": true,
 		"allowed_roles":     "",
 	}
 
@@ -179,7 +225,7 @@ func TestBackend_roleCrud(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
+	cid, connURL := prepareTestContainerPostgres(t, "test1", config.StorageView, b)
 	if cid != "" {
 		defer cleanupTestContainer(t, cid)
 	}
@@ -210,7 +256,7 @@ func TestBackend_BlockStatements(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
+	cid, connURL := prepareTestContainerPostgres(t, "test1", config.StorageView, b)
 	if cid != "" {
 		defer cleanupTestContainer(t, cid)
 	}
@@ -220,7 +266,7 @@ func TestBackend_BlockStatements(t *testing.T) {
 		"verify_connection":       false,
 		"allowed_roles":           "",
 	}
-	cid2, connURL2 := prepareTestContainer(t, "test2", config.StorageView, b)
+	cid2, connURL2 := prepareTestContainerPostgres(t, "test2", config.StorageView, b)
 	if cid2 != "" {
 		defer cleanupTestContainer(t, cid2)
 	}
@@ -258,7 +304,7 @@ func TestBackend_roleReadOnly(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cid, connURL := prepareTestContainer(t, "test1", config.StorageView, b)
+	cid, connURL := prepareTestContainerPostgres(t, "test1", config.StorageView, b)
 	if cid != "" {
 		defer cleanupTestContainer(t, cid)
 	}

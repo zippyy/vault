@@ -8,41 +8,42 @@ import (
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
 	_ "github.com/lib/pq"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 func pathConfigConnection(b *backend) *framework.Path {
 	return &framework.Path{
 		Pattern: "dbs/" + framework.GenericNameRegex("name"),
 		Fields: map[string]*framework.FieldSchema{
-			"name": &framework.FieldSchema{
+			"name": {
 				Type:        framework.TypeString,
 				Description: `Database connection name`,
 			},
 
-			"database_type": &framework.FieldSchema{
+			"database_type": {
 				Type:        framework.TypeString,
 				Description: `Database type (ex: postgres)`,
 			},
 
-			"connection_string": &framework.FieldSchema{
+			"connection_string": {
 				Type:        framework.TypeString,
 				Description: `Database connection string`,
 			},
 
-			"verify_connection": &framework.FieldSchema{
+			"verify_connection": {
 				Type:        framework.TypeBool,
 				Default:     true,
 				Description: `If set, connection_string is verified by actually connecting to the database`,
 			},
 
-			"max_open_connections": &framework.FieldSchema{
+			"max_open_connections": {
 				Type: framework.TypeInt,
 				Description: `Maximum number of open connections to the database;
 a zero uses the default value of two and a
 negative value means unlimited`,
 			},
 
-			"max_idle_connections": &framework.FieldSchema{
+			"max_idle_connections": {
 				Type: framework.TypeInt,
 				Description: `Maximum number of idle connections to the database;
 a zero uses the value of max_open_connections
@@ -51,7 +52,7 @@ If larger than max_open_connections it will be
 reduced to the same size.`,
 			},
 
-			"allowed_roles": &framework.FieldSchema{
+			"allowed_roles": {
 				Type:    framework.TypeString,
 				Default: "",
 				Description: `Comma separated list of roles allowed for the database.
@@ -129,6 +130,11 @@ func (b *backend) pathConnectionWrite(
 		// Verify the string
 		switch dbType {
 		case "postgres":
+			err := verifyConnection(dbType, connStr)
+			if err != "" {
+				return logical.ErrorResponse(err), nil
+			}
+		case "mysql":
 			err := verifyConnection(dbType, connStr)
 			if err != "" {
 				return logical.ErrorResponse(err), nil

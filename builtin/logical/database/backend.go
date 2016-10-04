@@ -147,5 +147,5 @@ const backendHelp = `
 The database backend dynamically generates database users.
 
 After mounting this backend, configure it using the endpoints within
-the "config/" path.
+the "dbs/" path.
 `
