@@ -878,7 +878,7 @@ func TestCore_HandleRequest_CreateToken_Lease(t *testing.T) {
 		Path:         "auth/token/create",
 		DisplayName:  "token",
 		CreationTime: te.CreationTime,
-		TTL:          time.Hour * 24 * 30,
+		TTL:          time.Hour * 24 * 32,
 	}
 	if !reflect.DeepEqual(te, expect) {
 		t.Fatalf("Bad: %#v expect: %#v", te, expect)
@@ -923,7 +923,7 @@ func TestCore_HandleRequest_CreateToken_NoDefaultPolicy(t *testing.T) {
 		Path:         "auth/token/create",
 		DisplayName:  "token",
 		CreationTime: te.CreationTime,
-		TTL:          time.Hour * 24 * 30,
+		TTL:          time.Hour * 24 * 32,
 	}
 	if !reflect.DeepEqual(te, expect) {
 		t.Fatalf("Bad: %#v expect: %#v", te, expect)
@@ -1914,7 +1914,10 @@ path "secret/*" {
 	}
 
 	// Renew the lease
-	req = logical.TestRequest(t, logical.UpdateOperation, "sys/renew/"+resp.Secret.LeaseID)
+	req = logical.TestRequest(t, logical.UpdateOperation, "sys/renew")
+	req.Data = map[string]interface{}{
+		"lease_id": resp.Secret.LeaseID,
+	}
 	req.ClientToken = lresp.Auth.ClientToken
 	_, err = c.HandleRequest(req)
 	if err != nil {

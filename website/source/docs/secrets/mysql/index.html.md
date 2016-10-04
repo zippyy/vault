@@ -172,7 +172,7 @@ the default on versions prior to that.
   <dd>
     <ul>
       <li>
-        <span class="param">verify-connection</span>
+        <span class="param">verify_connection</span>
         <span class="param-flags">optional</span>
 	If set, connection_url is verified by actually connecting to the database.
 	Defaults to true.
@@ -346,7 +346,7 @@ the default on versions prior to that.
     "data": {
       "keys": ["dev", "prod"]
     },
-    "lease_duration": 2592000,
+    "lease_duration": 2764800,
     "lease_id": "",
     "renewable": false
   }

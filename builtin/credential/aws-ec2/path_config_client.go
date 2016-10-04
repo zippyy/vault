@@ -13,13 +13,13 @@ func pathConfigClient(b *backend) *framework.Path {
 			"access_key": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Default:     "",
-				Description: "AWS Access key with permissions to query EC2 DescribeInstances API.",
+				Description: "AWS Access Key ID for the account used to make AWS API requests.",
 			},
 
 			"secret_key": &framework.FieldSchema{
 				Type:        framework.TypeString,
 				Default:     "",
-				Description: "AWS Secret key with permissions to query EC2 DescribeInstances API.",
+				Description: "AWS Secret Access Key for the account used to make AWS API requests.",
 			},
 
 			"endpoint": &framework.FieldSchema{
@@ -108,6 +108,9 @@ func (b *backend) pathConfigClientDelete(
 	// Remove all the cached EC2 client objects in the backend.
 	b.flushCachedEC2Clients()
 
+	// Remove all the cached EC2 client objects in the backend.
+	b.flushCachedIAMClients()
+
 	return nil, nil
 }
 
@@ -175,6 +178,7 @@ func (b *backend) pathConfigClientCreateUpdate(
 
 	if changedCreds {
 		b.flushCachedEC2Clients()
+		b.flushCachedIAMClients()
 	}
 
 	return nil, nil

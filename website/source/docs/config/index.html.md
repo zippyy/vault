@@ -46,8 +46,12 @@ sending a SIGHUP to the server process. These are denoted below.
   configuration options as documented below. If not set, HA will be attempted
   on the backend given in the `backend` parameter.
 
+* `cluster_name` (optional) - An identifier for your Vault cluster. If omitted,
+  Vault will generate a value for `cluster_name`. If connecting to Vault
+  Enterprise, this value will be used in the interface.
+
 * `listener` (required) - Configures how Vault is listening for API requests.
-  "tcp" is currently the only option available. A full reference for the
+  "tcp" and "atlas" are valid values. A full reference for the
    inner syntax is below.
 
 * `cache_size` (optional) - If set, the size of the read cache used
@@ -66,12 +70,12 @@ sending a SIGHUP to the server process. These are denoted below.
   (see below).
 
 * `default_lease_ttl` (optional) - Configures the default lease duration
-  for tokens and secrets. This is a string value using a suffix, e.g. "720h".
-  Default value is 30 days. This value cannot be larger than `max_lease_ttl`.
+  for tokens and secrets. This is a string value using a suffix, e.g. "768h".
+  Default value is 32 days. This value cannot be larger than `max_lease_ttl`.
 
 * `max_lease_ttl` (optional) - Configures the maximum possible
   lease duration for tokens and secrets. This is a string value using a suffix,
-  e.g. "720h". Default value is 30 days.
+  e.g. "768h". Default value is 32 days.
 
 In production it is a risk to run Vault on systems where `mlock` is
 unavailable or the setting has been disabled via the `disable_mlock`.
@@ -91,9 +95,11 @@ sudo setcap cap_ipc_lock=+ep $(readlink -f $(which vault))
 
 ## Listener Reference
 
-For the `listener` section, the only supported listener currently
-is "tcp". Regardless of future plans, this is the recommended listener,
-since it allows for HA mode.
+For the `listener` section, the only required listener is "tcp".
+Regardless of future plans, this is the recommended listener,
+as it allows for HA mode. If you wish to use the Vault
+Enterprise interface in HashiCorp Atlas, you may add an ["atlas" listener block](#connecting-to-vault-enterprise-in-hashicorp-atlas)
+in addition to the "tcp" one.
 
 The supported options are:
 
@@ -124,6 +130,38 @@ The supported options are:
       or "tls12". This defaults to "tls12". WARNING: TLS 1.1 and lower
       are generally considered less secure; avoid using these if
       possible.
+
+### Connecting to Vault Enterprise in HashiCorp Atlas
+
+Adding an "atlas" block will initiate a long-running connection to the
+[SCADA](https://scada.hashicorp.com) service. The SCADA connection allows the
+Vault Enterprise interface to securely communicate with and operate on your
+Vault cluster.
+
+The "atlas" `listener` supports these options:
+
+  * `endpoint` (optional) - The endpoint address used for Vault Enterprise interface
+      integration. Defaults to the public Vault Enterprise endpoints on Atlas.
+
+  * `infrastructure` (required) - Used to provide the Atlas infrastructure name and
+      the SCADA connection. The format of this is `username/environment`.
+
+  * `node_id` (required) - The identifier for an individual node—used in
+      the Vault Enterprise dashboard.
+
+  * `token` (required) - A token from Atlas used to authenticate SCADA session. Generate
+      one in the [Atlas](https://atlas.hashicorp.com/settings/tokens).
+
+Additionally, the [`cluster_name`](#cluster_name) config option will be used to
+identify your cluster members inside the infrastructure in the Vault Enterprise
+interface. It is important for operators to use the same value for
+`cluster_name` across cluster members because Vault overwrites this value
+internally on instance instantiation.
+
+This allows the connection of multiple clusters to a single `infrastructure`.
+
+For more on Vault Enterprise, see the [help documentation](https://atlas.hashicorptest.com/help/vault/features).
+
 
 ## Telemetry Reference
 
@@ -239,9 +277,7 @@ page](https://www.vaultproject.io/docs/concepts/ha.html).
 
   * `disable_clustering` (optional) - This controls whether clustering features
     (currently, request forwarding) are enabled. Setting this on a node will
-    disable these features _when that node is the active node_. In 0.6.1 this
-    is `"true"` (note the quotes) by default, but will become `"false"` by
-    default in the next release.
+    disable these features _when that node is the active node_.
 
 #### Backend Reference: Consul
 
@@ -394,6 +430,12 @@ For etcd, the following options are supported:
     be implemented later. It can be set to "0", "no", "n", "false", "1", "yes",
     "y", or "true".  Defaults to on.  Set to false if your etcd cluster is
     behind a proxy server and syncing causes Vault to fail.
+
+  * `ha_enabled` (optional) - Setting this to `"1"`, `"t"`, or `"true"` will
+    enable HA mode. _This is currently *known broken*._ This option can also be
+    provided via the environment variable `ETCD_HA_ENABLED`. If you are
+    upgrading from a version of Vault where HA support was enabled by default,
+    it is _very important_ that you set this parameter _before_ upgrading!
 
   * `username` (optional) - Username to use when authenticating with the etcd
     server.  May also be specified via the ETCD_USERNAME environment variable.

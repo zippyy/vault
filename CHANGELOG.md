@@ -2,15 +2,74 @@
 
 DEPRECATIONS/CHANGES:
 
+ * Convergent Encryption v2: New keys in `transit` using convergent mode will
+   use a new nonce derivation mechanism rather than require the user to supply
+   a nonce. While not explicitly increasing security, it minimizes the
+   likelihood that a user will use the mode improperly and impact the security
+   of their keys. Keys in convergent mode that were created in v0.6.1 will
+   continue to work with the same mechanism (user-supplied nonce).
+ * `etcd` HA off by default: Following in the footsteps of `dynamodb`, the
+   `etcd` storage backend now requires that `ha_enabled` be explicitly
+   specified in the configuration file. The backend currently has known broken
+   HA behavior, so this flag discourages use by default without explicitly
+   enabling it. If you are using this functionality, when upgrading, you should
+   set `ha_enabled` to `"true"` *before* starting the new versions of Vault.
+ * Default/Max lease/token TTLs are now 32 days: In previous versions of Vault
+   the default was 30 days, but moving it to 32 days allows some operations
+   (e.g. reauthenticating, renewing, etc.) to be performed via a monthly cron
+   job.
+ * AppRole Secret ID endpoints changed: Secret ID and Secret ID accessors were
+   getting logged in plaintext in the audit logs as they were part of request
+   URLs.  The GET and DELETE operations are now moved to new endpoints (`/lookup`
+   and `/destroy`) which consumes the input from the body and not the URL.
+ * Reading wrapped responses from `cubbyhole/response` is deprecated. The
+   `sys/wrapping/unwrap` endpoint should be used instead as it provides
+   additional security, auditing, and other benefits. The ability to read
+   directly will be removed in a future release.
+ * Request Forwarding is now on by default: in 0.6.1 this required toggling on,
+   but is now enabled by default. This can be disabled via the
+   `"disable_clustering"` parameter in Vault's config, or per-request with the
+   `X-Vault-No-Request-Forwarding` header.
+
+FEATURES:
+
+ * **Secret ID CIDR Restrictions in `AppRole`**: Secret IDs generated under an
+   approle can now specify a list of CIDR blocks from where the requests to
+   generate secret IDs should originate from. If an approle already has CIDR
+   restrictions specified, the CIDR restrictions on the secret ID should be a
+   subset of those specified on the role [GH-1910]
+ * **Initial Root Token PGP Encryption**: Similar to `generate-root`, the root
+   token created at initialization time can now be PGP encrypted [GH-1883]
+ * **Support Chained Intermediate CAs in `pki`**: The `pki` backend now allows,
+   when a CA cert is being supplied as a signed root or intermediate, a trust
+   chain of arbitrary length. The chain is returned as a parameter at
+   certificate issue/sign time and is retrievable independently as well.
+   [GH-1694]
+ * **Response Wrapping Enhancements**: There are new endpoints to look up
+   response wrapped token parameters; wrap arbitrary values; rotate wrapping
+   tokens; and unwrap with enhanced validation. [GH-1927]
+ * Transit features: The `transit` backend now supports generating random bytes
+   and SHA sums; HMACs; and signing and verification functionality using EC
+   keys (P-256)
+
 IMPROVEMENTS:
 
  * api: Return error when an invalid (as opposed to incorrect) unseal key is
    submitted, rather than ignoring it [GH-1782]
  * api: Add method to call `auth/token/create-orphan` endpoint [GH-1834]
  * api: Rekey operation now redirects from standbys to master [GH-1862]
+ * audit/file: Sending a `SIGHUP` to Vault now causes Vault to close and
+   re-open the log file, making it easier to rotate audit logs [GH-1953]
+ * auth/aws-ec2: IAM bound parameters on the aws-ec2 backend will perform a
+   prefix match instead of exact match [GH-1943]
+ * auth/aws-ec2: Added a new constraint `bound_iam_instance_profile_arn` to
+   refer to IAM instance profile ARN and fixed the earlier `bound_iam_role_arn`
+   to refer to IAM role ARN instead of the instance profile ARN [GH-1913]
  * auth/aws-ec2: Backend generates the nonce by default and clients can
    explicitly disable reauthentication by setting empty nonce [GH-1889]
  * auth/token: Added warnings if tokens and accessors are used in URLs [GH-1806]
+ * command/format: The `format` flag on select CLI commands takes `yml` as an
+   alias for `yaml` [GH-1899]
  * core: Allow the size of the read cache to be set via the config file, and
    change the default value to 1MB (from 32KB) [GH-1784]
  * core: Allow single and two-character path parameters for most places
@@ -18,17 +77,28 @@ IMPROVEMENTS:
  * core: Allow list operations to be response-wrapped [GH-1814]
  * core: Provide better protection against timing attacks in Shamir code
    [GH-1877]
- * core: Allow initial root token to be PGP-encrypted [GH-1883]
+ * core: Unmounting/disabling backends no longer returns an error if the mount
+   didn't exist. This is line with elsewhere in Vault's API where `DELETE` is
+   an idempotent operation. [GH-1903]
  * credential/approle: At least one constraint is required to be enabled while
    creating and updating a role [GH-1882]
+ * secret/cassandra: Added consistency level for use with roles [GH-1931]
  * secret/transit: Use HKDF (RFC 5869) as the key derivation function for new
    keys [GH-1812]
  * secret/transit: Empty plaintext values are now allowed [GH-1874]
 
 BUG FIXES:
 
+ * audit: Fix panic being caused by some values logging as underlying Go types
+   instead of formatted strings [GH-1912]
+ * auth/approle: Fixed panic on deleting approle that doesn't exist [GH-1920]
+ * auth/approle: Not letting secret IDs and secret ID accessors to get logged
+   in plaintext in audit logs [GH-1947]
  * auth/aws-ec2: Allow authentication if the underlying host is in a bad state
    but the instance is running [GH-1884]
+ * auth/token: Fixed metadata getting missed out from token lookup response by
+   gracefully handling token entry upgrade [GH-1924]
+ * cli: Don't error on newline in token file [GH-1774]
  * core: Pass back content-type header for forwarded requests [GH-1791]
  * core: Fix panic if the same key was given twice to `generate-root` [GH-1827]
  * core: Fix potential deadlock on unmount/remount [GH-1793]

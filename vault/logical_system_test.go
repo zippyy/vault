@@ -233,19 +233,6 @@ func TestSystemBackend_CapabilitiesAccessor(t *testing.T) {
 	}
 }
 
-func TestSystemBackend_unmount_invalid(t *testing.T) {
-	b := testSystemBackend(t)
-
-	req := logical.TestRequest(t, logical.DeleteOperation, "mounts/foo/")
-	resp, err := b.HandleRequest(req)
-	if err != logical.ErrInvalidRequest {
-		t.Fatalf("err: %v", err)
-	}
-	if resp.Data["error"] != "no matching mount" {
-		t.Fatalf("bad: %v", resp)
-	}
-}
-
 func TestSystemBackend_remount(t *testing.T) {
 	b := testSystemBackend(t)
 
@@ -519,17 +506,21 @@ func TestSystemBackend_revokePrefixAuth(t *testing.T) {
 		Logger: core.logger,
 		System: logical.StaticSystemView{
 			DefaultLeaseTTLVal: time.Hour * 24,
-			MaxLeaseTTLVal:     time.Hour * 24 * 30,
+			MaxLeaseTTLVal:     time.Hour * 24 * 32,
 		},
 	}
-	b := NewSystemBackend(core, bc)
+	b, err := NewSystemBackend(core, bc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	exp := ts.expiration
 
 	te := &TokenEntry{
 		ID:   "foo",
 		Path: "auth/github/login/bar",
 	}
-	err := ts.create(te)
+	err = ts.create(te)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -644,19 +635,6 @@ func TestSystemBackend_disableAuth(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 	if resp != nil {
-		t.Fatalf("bad: %v", resp)
-	}
-}
-
-func TestSystemBackend_disableAuth_invalid(t *testing.T) {
-	b := testSystemBackend(t)
-
-	req := logical.TestRequest(t, logical.DeleteOperation, "auth/foo")
-	resp, err := b.HandleRequest(req)
-	if err != logical.ErrInvalidRequest {
-		t.Fatalf("err: %v", err)
-	}
-	if resp.Data["error"] != "no matching backend" {
 		t.Fatalf("bad: %v", resp)
 	}
 }
@@ -914,19 +892,6 @@ func TestSystemBackend_disableAudit(t *testing.T) {
 	}
 }
 
-func TestSystemBackend_disableAudit_invalid(t *testing.T) {
-	b := testSystemBackend(t)
-
-	req := logical.TestRequest(t, logical.DeleteOperation, "audit/foo")
-	resp, err := b.HandleRequest(req)
-	if err != logical.ErrInvalidRequest {
-		t.Fatalf("err: %v", err)
-	}
-	if resp.Data["error"] != "no matching backend" {
-		t.Fatalf("bad: %v", resp)
-	}
-}
-
 func TestSystemBackend_rawRead_Protected(t *testing.T) {
 	b := testSystemBackend(t)
 
@@ -1074,10 +1039,16 @@ func testSystemBackend(t *testing.T) logical.Backend {
 		Logger: c.logger,
 		System: logical.StaticSystemView{
 			DefaultLeaseTTLVal: time.Hour * 24,
-			MaxLeaseTTLVal:     time.Hour * 24 * 30,
+			MaxLeaseTTLVal:     time.Hour * 24 * 32,
 		},
 	}
-	return NewSystemBackend(c, bc)
+
+	b, err := NewSystemBackend(c, bc)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return b
 }
 
 func testCoreSystemBackend(t *testing.T) (*Core, logical.Backend, string) {
@@ -1086,8 +1057,13 @@ func testCoreSystemBackend(t *testing.T) (*Core, logical.Backend, string) {
 		Logger: c.logger,
 		System: logical.StaticSystemView{
 			DefaultLeaseTTLVal: time.Hour * 24,
-			MaxLeaseTTLVal:     time.Hour * 24 * 30,
+			MaxLeaseTTLVal:     time.Hour * 24 * 32,
 		},
 	}
-	return c, NewSystemBackend(c, bc), root
+
+	b, err := NewSystemBackend(c, bc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return c, b, root
 }

@@ -49,6 +49,10 @@ func (n *NoopAudit) GetHash(data string) string {
 	return n.Config.Salt.GetIdentifiedHMAC(data)
 }
 
+func (n *NoopAudit) Reload() error {
+	return nil
+}
+
 func TestCore_EnableAudit(t *testing.T) {
 	c, key, _ := TestCoreUnsealed(t)
 	c.auditBackends["noop"] = func(config *audit.BackendConfig) (audit.Backend, error) {
@@ -112,9 +116,9 @@ func TestCore_DisableAudit(t *testing.T) {
 		}, nil
 	}
 
-	err := c.disableAudit("foo")
-	if err.Error() != "no matching backend" {
-		t.Fatalf("err: %v", err)
+	existed, err := c.disableAudit("foo")
+	if existed && err != nil {
+		t.Fatalf("existed: %v; err: %v", existed, err)
 	}
 
 	me := &MountEntry{
@@ -127,9 +131,9 @@ func TestCore_DisableAudit(t *testing.T) {
 		t.Fatalf("err: %v", err)
 	}
 
-	err = c.disableAudit("foo")
-	if err != nil {
-		t.Fatalf("err: %v", err)
+	existed, err = c.disableAudit("foo")
+	if !existed || err != nil {
+		t.Fatalf("existed: %v; err: %v", existed, err)
 	}
 
 	// Check for registration
