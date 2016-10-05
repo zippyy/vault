@@ -1,4 +1,4 @@
-## 0.6.2 (Unreleased)
+## 0.6.2 (October 5, 2016)
 
 DEPRECATIONS/CHANGES:
 
@@ -18,18 +18,29 @@ DEPRECATIONS/CHANGES:
    the default was 30 days, but moving it to 32 days allows some operations
    (e.g. reauthenticating, renewing, etc.) to be performed via a monthly cron
    job.
- * AppRole Secret ID endpoints changed: Secret ID and Secret ID accessors were
-   getting logged in plaintext in the audit logs as they were part of request
-   URLs.  The GET and DELETE operations are now moved to new endpoints (`/lookup`
-   and `/destroy`) which consumes the input from the body and not the URL.
+ * AppRole Secret ID endpoints changed: Secret ID and Secret ID accessors are
+   no longer part of request URLs. The GET and DELETE operations are now moved
+   to new endpoints (`/lookup` and `/destroy`) which consumes the input from
+   the body and not the URL.
+ * AppRole requires at least one constraint: previously it was sufficient to
+   turn off all AppRole authentication constraints (secret ID, CIDR block) and
+   use the role ID only. It is now required that at least one additional
+   constraint is enabled. Existing roles are unaffected, but any new roles or
+   updated roles will require this.
  * Reading wrapped responses from `cubbyhole/response` is deprecated. The
    `sys/wrapping/unwrap` endpoint should be used instead as it provides
    additional security, auditing, and other benefits. The ability to read
    directly will be removed in a future release.
  * Request Forwarding is now on by default: in 0.6.1 this required toggling on,
    but is now enabled by default. This can be disabled via the
-   `"disable_clustering"` parameter in Vault's config, or per-request with the
-   `X-Vault-No-Request-Forwarding` header.
+   `"disable_clustering"` parameter in Vault's
+   [config](https://www.vaultproject.io/docs/config/index.html), or per-request
+   with the `X-Vault-No-Request-Forwarding` header.
+ * In prior versions a bug caused the `bound_iam_role_arn` value in the
+   `aws-ec2` authentication backend to actually use the instance profile ARN.
+   This has been corrected, but as a result there is a behavior change. To
+   match using the instance profile ARN, a new parameter
+   `bound_iam_instance_profile_arn` has been added.
 
 FEATURES:
 
@@ -47,10 +58,11 @@ FEATURES:
    [GH-1694]
  * **Response Wrapping Enhancements**: There are new endpoints to look up
    response wrapped token parameters; wrap arbitrary values; rotate wrapping
-   tokens; and unwrap with enhanced validation. [GH-1927]
+   tokens; and unwrap with enhanced validation. In addition, list operations
+   can now be response-wrapped. [GH-1927]
  * Transit features: The `transit` backend now supports generating random bytes
    and SHA sums; HMACs; and signing and verification functionality using EC
-   keys (P-256)
+   keys (P-256 curve)
 
 IMPROVEMENTS:
 
@@ -60,6 +72,8 @@ IMPROVEMENTS:
  * api: Rekey operation now redirects from standbys to master [GH-1862]
  * audit/file: Sending a `SIGHUP` to Vault now causes Vault to close and
    re-open the log file, making it easier to rotate audit logs [GH-1953]
+ * auth/aws-ec2: EC2 instances can get authenticated by presenting the identity
+   document and its SHA256 RSA digest [GH-1961]
  * auth/aws-ec2: IAM bound parameters on the aws-ec2 backend will perform a
    prefix match instead of exact match [GH-1943]
  * auth/aws-ec2: Added a new constraint `bound_iam_instance_profile_arn` to
@@ -83,6 +97,7 @@ IMPROVEMENTS:
  * credential/approle: At least one constraint is required to be enabled while
    creating and updating a role [GH-1882]
  * secret/cassandra: Added consistency level for use with roles [GH-1931]
+ * secret/mysql: SQL for revoking user can be configured on the role [GH-1914]
  * secret/transit: Use HKDF (RFC 5869) as the key derivation function for new
    keys [GH-1812]
  * secret/transit: Empty plaintext values are now allowed [GH-1874]
@@ -102,7 +117,9 @@ BUG FIXES:
  * core: Pass back content-type header for forwarded requests [GH-1791]
  * core: Fix panic if the same key was given twice to `generate-root` [GH-1827]
  * core: Fix potential deadlock on unmount/remount [GH-1793]
- * physical: Remove empty directories from the `file` storage backend [GH-1821]
+ * physical/file: Remove empty directories from the `file` storage backend [GH-1821]
+ * physical/zookeeper: Remove empty directories from the `zookeeper` storage
+   backend and add a fix to the `file` storage backend's logic [GH-1964]
  * secret/aws: Added update operation to `aws/sts` path to consider `ttl`
    parameter [39b75c6]
  * secret/aws: Mark STS secrets as non-renewable [GH-1804]
