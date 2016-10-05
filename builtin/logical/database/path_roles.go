@@ -36,6 +36,40 @@ func pathRoles(b *backend) *framework.Path {
 				Description: "SQL string to create a user. See help for more info.",
 			},
 			
+			"revoke_sql": {
+				Type:        framework.TypeString,
+				Description: "SQL string to revoke a user. See help for more info.",
+			},
+			
+			"rollback_sql": {
+				Type:        framework.TypeString,
+				Description: "SQL string to rollback an errored user creation. See help for more info.",
+			},
+			
+			"connection_template": {
+				Type:        framework.TypeBool,
+				Description: "allow the credential endpoint to emit a full connection template.",
+				Default:     false,
+			},
+
+			"username_length": {
+				Type:        framework.TypeInt,
+				Description: "number of characters to truncate generated mysql usernames to (default 16)",
+				Default:     16,
+			},
+
+			"rolename_length": {
+				Type:        framework.TypeInt,
+				Description: "number of characters to truncate the rolename portion of generated mysql usernames to (default 4)",
+				Default:     4,
+			},
+
+			"displayname_length": {
+				Type:        framework.TypeInt,
+				Description: "number of characters to truncate the displayname portion of generated mysql usernames to (default 4)",
+				Default:     4,
+			},
+			
 			"database_name": {
 				Type:        framework.TypeString,
 				Description: "Name of the database associated with the role.",
@@ -92,8 +126,11 @@ func (b *backend) pathRoleRead(
 
 	return &logical.Response{
 		Data: map[string]interface{}{
-			"sql":           role.SQL,
-			"database_name": role.DBName,
+			"database_name":       role.DBName,
+			"sql":                 role.SQL,
+			"revoke_sql":          role.RevokeSQL,
+			"rollback_sql":        role.RollbackSQL,
+			"connection_template": role.ConnectionTemplate,
 		},
 	}, nil
 }
@@ -142,8 +179,14 @@ func (b *backend) pathRoleCreate(
 
 	// Store it
 	entry, err := logical.StorageEntryJSON("role/"+name, &roleEntry{
-		SQL:    sqlstmt,
-		DBName: db_name,
+		DBName:             db_name,
+		SQL:                sqlstmt,
+		RevokeSQL:          data.Get("revoke_sql").(string),
+		RollbackSQL:        data.Get("rollback_sql").(string),
+		ConnectionTemplate: data.Get("connection_template").(bool),
+		UsernameLength:     data.Get("username_length").(int),
+		DisplaynameLength:  data.Get("displayname_length").(int),
+		RolenameLength:     data.Get("rolename_length").(int),
 	})
 	if err != nil {
 		return nil, err
@@ -156,11 +199,31 @@ func (b *backend) pathRoleCreate(
 }
 
 type roleEntry struct {
-	// SQL statement for the role
-	SQL    string `json:"sql"`
-	
 	// Name of database that will use the role
-	DBName string `json:"database_name"`
+	DBName             string `json:"database_name"`
+	
+	// SQL statement for the role
+	SQL                string `json:"sql"`
+	
+	// SQL statement for revoking users
+	RevokeSQL          string `json:"revoke_sql" mapstructure:"revoke_sql" structs:"revoke_sql"`
+	
+	// SQL statement for cleaning up after failing to add a user
+	RollbackSQL        string `json:"rollback_sql" mapstructure:"rollback_sql" structs:"rollback_sql"`
+	
+	// Connection template should be allowed when credentials are issued
+	ConnectionTemplate bool   `json:"connection_template" mapstructure:"connection_template" structs:"connection_template"`
+	
+	// Username length to truncate the generated name
+	UsernameLength     int    `json:"username_length" mapstructure:"username_length" structs:"username_length"`
+	
+	// Display name length to truncate the generated name
+	DisplaynameLength  int    `json:"displayname_length" mapstructure:"displayname_length" structs:"displayname_length"`
+	
+	// Role name length to truncate the generated name
+	RolenameLength     int    `json:"rolename_length" mapstructure:"rolename_length" structs:"rolename_length"`
+	
+	
 }
 
 const pathRoleHelpSyn = `
