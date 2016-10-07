@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"strings"
+	"encoding/json"
 
 	"github.com/fatih/structs"
 	"github.com/hashicorp/vault/logical"
@@ -81,7 +82,7 @@ func (b *backend) pathConnectionRead(req *logical.Request, data *framework.Field
 		return nil, nil
 	}
 
-	var config SqlConfig
+	var config configPostgres
 	if err := entry.DecodeJSON(&config); err != nil {
 		return nil, err
 	}
@@ -98,61 +99,47 @@ func (b *backend) pathConnectionWrite(
 	
 	b.dbs[dbName] = nil
 	
-	connStr := data.Get("connection_string").(string)
-	if connStr == "" {
-		return logical.ErrorResponse("connection_string parameter must be supplied"), nil
-	}
-
-	maxOpenConns := data.Get("max_open_connections").(int)
-	if maxOpenConns == 0 {
-		maxOpenConns = 2
-	}
-
-	maxIdleConns := data.Get("max_idle_connections").(int)
-	if maxIdleConns == 0 {
-		maxIdleConns = maxOpenConns
-	}
-	if maxIdleConns > maxOpenConns {
-		maxIdleConns = maxOpenConns
-	}
-
 	// Get the database type before attempting to verify the connection
 	dbType := strings.ToLower(data.Get("database_type").(string))
 	if dbType == "" {
 		return logical.ErrorResponse("database_type parameter must be supplied"), nil
 	}
-
-	allowedRoles := data.Get("allowed_roles").(string)
-
-	// Don't check the connection_string if verification is disabled
-	verifyConn := data.Get("verify_connection").(bool)
-	if verifyConn {
-		// Verify the string
-		switch dbType {
-		case "postgres":
-			err := verifyConnection(dbType, connStr)
-			if err != "" {
-				return logical.ErrorResponse(err), nil
-			}
-		case "mysql":
-			err := verifyConnection(dbType, connStr)
-			if err != "" {
-				return logical.ErrorResponse(err), nil
-			}
-		default:
-			return logical.ErrorResponse(fmt.Sprintf(
-				"Error validating connection info: unrecognized database type")), nil
-		}
+	
+	var err error
+	
+	switch dbType {
+	case "postgres":
+		var dbConfig configPostgres
+		err := buildPostgres(data, &dbConfig)
+	case "mysql":
+		var dbConfig configMySQL
+		err := buildMySQL(data, &dbConfig)
+//	case "mssql":
+//	case "cassandra":
+//	case "rabbitmq":
+//	case "mongodb":
+	default:
+		return logical.ErrorResponse(fmt.Sprintf(
+			"Error validating connection info: unrecognized database type")), nil
 	}
+	
+	if err != nil {
+		return logical.ErrorResponse(fmt.Sprintf(
+				"Error validating connection info: %q", err)), nil
+	}
+	
+	configRaw, err := json.Marshal(dbConfig)
+	if err != nil {
+		return logical.ErrorResponse(fmt.Sprintf(
+				"Error validating connection info: %q", err)), nil
+	}
+	
+	var config configDB
+	config.DatabaseType = dbType
+	config.ConfigInfo = configRaw
 
 	// Store it
-	entry, err := logical.StorageEntryJSON("dbs/"+dbName, SqlConfig{
-		DBType:             dbType,
-		ConnectionString:   connStr,
-		MaxOpenConnections: maxOpenConns,
-		MaxIdleConnections: maxIdleConns,
-		AllowedRoles:       allowedRoles,
-	})
+	entry, err := logical.StorageEntryJSON("dbs/"+dbName, config)
 	if err != nil {
 		return nil, err
 	}
@@ -167,6 +154,11 @@ func (b *backend) pathConnectionWrite(
 	resp.AddWarning("Read access to this endpoint should be controlled via ACLs as it will return the connection string or URL as it is, including passwords, if any.")
 
 	return resp, nil
+}
+
+type configDB struct {
+	DatabaseType string `json:"database_type" mapstructure:"database_type" structs:"database_type"`
+	ConfigInfo   []byte `json:"config_info" mapstructure:"config_info" structs:"config_info"`
 }
 
 const pathConfigConnectionHelpSyn = `

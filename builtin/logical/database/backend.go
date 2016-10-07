@@ -5,6 +5,7 @@ import (
 	"strings"
 	"sync"
 	"fmt"
+	"encoding/json"
 
 	log "github.com/mgutz/logxi/v1"
 
@@ -52,6 +53,10 @@ type backend struct {
 	logger log.Logger
 }
 
+type Databases interface {
+    Connect(*sql.DB) error
+}
+
 func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) {
 	b.logger.Trace("db: enter")
 	defer b.logger.Trace("db: exit")
@@ -69,43 +74,29 @@ func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) 
 		return nil, fmt.Errorf("configure the DB connection with dbs/<name> first")
 	}
 	
-	var config SqlConfig
-	if err := entry.DecodeJSON(&config); err != nil {
+	var dbInfo configDB
+	if err := entry.DecodeJSON(&dbInfo); err != nil {
 		return nil, err
 	}
 	
-	
-	// If the connection exists, move on
-	if b.dbs[name] != nil {
-		if err := b.dbs[name].Ping(); err == nil {
-			return b.dbs[name], nil
+	switch dbInfo.DatabaseType {
+	case "postgres":
+		var config configPostgres
+		err = json.Unmarshal(dbInfo.ConfigInfo, &config)
+		if err != nil {
+			return nil, fmt.Errorf("failure to unmarshal config data")
 		}
-		// If the ping was unsuccessful, close it and ignore errors
-		// in favor of attempting to reestablish the connection
-		b.dbs[name].Close()
-	}
-
-	// Ensure UTC for all connections
-	if strings.HasPrefix(config.ConnectionString, "postgres://") || strings.HasPrefix(config.ConnectionString, "postgresql://") {
-		if strings.Contains(config.ConnectionString, "?") {
-			config.ConnectionString += "&timezone=utc"
-		} else {
-			config.ConnectionString += "?timezone=utc"
+		err = Connect(b.dbs[name], config)
+	case "mysql":
+		var config configMySQL
+		err = json.Unmarshal(dbInfo.ConfigInfo, &config)
+		if err != nil {
+			return nil, fmt.Errorf("failure to unmarshal config data")
 		}
-	} else {
-		config.ConnectionString += " timezone=utc"
+		err = Connect(b.dbs[name], config)
+	default:
+		return nil, fmt.Errorf("database type not recognized")
 	}
-
-	dbconn, err := sql.Open(config.DBType, config.ConnectionString)
-	if err != nil {
-		b.dbs[name] = nil
-		return nil, err
-	}
-	
-	// Set the connection pool settings based on settings.
-	dbconn.SetMaxOpenConns(config.MaxOpenConnections)
-	dbconn.SetMaxIdleConns(config.MaxIdleConnections)
-	b.dbs[name] = dbconn
 	
 	return b.dbs[name], nil
 }

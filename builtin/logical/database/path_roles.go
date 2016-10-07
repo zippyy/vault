@@ -213,17 +213,6 @@ type roleEntry struct {
 	
 	// Connection template should be allowed when credentials are issued
 	ConnectionTemplate bool   `json:"connection_template" mapstructure:"connection_template" structs:"connection_template"`
-	
-	// Username length to truncate the generated name
-	UsernameLength     int    `json:"username_length" mapstructure:"username_length" structs:"username_length"`
-	
-	// Display name length to truncate the generated name
-	DisplaynameLength  int    `json:"displayname_length" mapstructure:"displayname_length" structs:"displayname_length"`
-	
-	// Role name length to truncate the generated name
-	RolenameLength     int    `json:"rolename_length" mapstructure:"rolename_length" structs:"rolename_length"`
-	
-	
 }
 
 const pathRoleHelpSyn = `
