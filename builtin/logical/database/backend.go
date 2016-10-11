@@ -53,10 +53,6 @@ type backend struct {
 	logger log.Logger
 }
 
-type Databases interface {
-    Connect(*sql.DB) error
-}
-
 func (b *backend) DBConnection(s logical.Storage, name string) (*sql.DB, error) {
 	b.logger.Trace("db: enter")
 	defer b.logger.Trace("db: exit")

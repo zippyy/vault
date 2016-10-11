@@ -9,7 +9,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func buildPostgres(options map[string]string, db *configPostgres) (error) {
+func buildMSSQL(options map[string]string, db *configMSSQL) (error) {
 	connStr := options["connection_string"]
 	if connStr == "" {
 		return fmt.Errorf("connection_string parameter must be supplied")
@@ -20,7 +20,7 @@ func buildPostgres(options map[string]string, db *configPostgres) (error) {
 	if maxOpenConnsStr == "" {
 		maxOpenConns = 2
 	} else {
-        maxOpenConns, err = strconv.Atoi(maxOpenConnsStr)
+        maxOpenConns, err := strconv.Atoi(maxOpenConnsStr)
         if err != nil {
             return fmt.Errorf("max_open_connections value cannot be parsed.")
         }
@@ -49,7 +49,7 @@ func buildPostgres(options map[string]string, db *configPostgres) (error) {
         return fmt.Errorf("verify_connection cannot be parsed.")
     }
 	if verifyConn {
-        err = verifyConnection("postgresql", connStr)
+        err = verifyConnection("mssql", connStr)
         if err != nil {
             return err
         }
@@ -63,7 +63,7 @@ func buildPostgres(options map[string]string, db *configPostgres) (error) {
 	return nil
 }
 
-func (connectInfo configConnectPostgres) Connect() (error) {
+func (connectInfo configConnectMSSQL) Connect() (error) {
 	// If the connection exists, move on
 	if connectInfo.connection != nil {
 		if err := connectInfo.connection.Ping(); err == nil {
@@ -74,18 +74,7 @@ func (connectInfo configConnectPostgres) Connect() (error) {
 		connectInfo.connection.Close()
 	}
 
-	// Ensure UTC for all connections
-	if strings.HasPrefix(connectInfo.config.ConnectionString, "postgres://") || strings.HasPrefix(connectInfo.config.ConnectionString, "postgresql://") {
-		if strings.Contains(connectInfo.config.ConnectionString, "?") {
-			connectInfo.config.ConnectionString += "&timezone=utc"
-		} else {
-			connectInfo.config.ConnectionString += "?timezone=utc"
-		}
-	} else {
-		connectInfo.config.ConnectionString += " timezone=utc"
-	}
-
-	dbConnNew, err := sql.Open("postgresql", connectInfo.config.ConnectionString)
+	dbConnNew, err := sql.Open("mssql", connectInfo.config.ConnectionString)
 	if err != nil {
 		connectInfo.connection = nil
 		return err
@@ -108,15 +97,15 @@ func verifyConnection(dbType string, connstr string) error {
 	if err := connect.Ping(); err != nil {
 		return fmt.Errorf("Error validating connection info: %s", err)
 	}
-	return ""
+	return nil
 }
 
-type configConnectPostgres struct {
-	config configPostgres
+type configConnectMSSQL struct {
+	config configMSSQL
 	connection *sql.DB
 }
 
-type configPostgres struct {
+type configMSSQL struct {
 	// The connection string for reaching the database
 	ConnectionString string `json:"connection_string" structs:"connection_string" mapstructure:"connection_string"`
 
@@ -130,7 +119,7 @@ type configPostgres struct {
 	AllowedRoles string `json:"allowed_roles" structs:"allowed_roles" mapstructure:"allowed_roles"`
 }
 
-type roleEntryPostgres struct {
+type roleEntryMSSQL struct {
 	// Name of database that will use the role
 	DBName             string `json:"database_name" mapstructure:"database_name" structs:"database_name"`
 	

@@ -3,39 +3,58 @@ package database
 import (
 	"database/sql"
 	"fmt"
+    "time"
+    "strconv"
 
-	"github.com/hashicorp/vault/logical/framework"
 	_ "github.com/go-sql-driver/mysql"
 )
 
-func buildMySQL(data *framework.FieldData, db *configMySQL) (error) {
-	connStr := data.Get("connection_string").(string)
+func buildMySQL(options map[string]string, db *configMySQL) (error) {
+	connStr := options["connection_string"]
 	if connStr == "" {
 		return fmt.Errorf("connection_string parameter must be supplied")
 	}
 
-	maxOpenConns := data.Get("max_open_connections").(int)
-	if maxOpenConns == 0 {
-		maxOpenConns = 2
-	}
+    var maxOpenConns int
+	maxOpenConnsStr := options["max_open_connections"]
+	if maxOpenConnsStr == "" {
+		maxOpenConns := 2
+	} else {
+        maxOpenConns, err := strconv.Atoi(maxOpenConnsStr)
+        if err != nil {
+            return fmt.Errorf("max_open_connections value cannot be parsed.")
+        }
+    }
 
-	maxIdleConns := data.Get("max_idle_connections").(int)
-	if maxIdleConns == 0 {
+    var maxIdleConns int
+	maxIdleConnsStr := options["max_idle_connections"]
+	if maxIdleConnsStr == "" {
 		maxIdleConns = maxOpenConns
-	}
+	} else {
+        maxIdleConns, err := strconv.Atoi(maxIdleConnsStr)
+        if err != nil {
+            return fmt.Errorf("max_idle_connections value cannot be parsed.")
+        }
+    }
 	if maxIdleConns > maxOpenConns {
 		maxIdleConns = maxOpenConns
 	}
 
-	allowedRoles := data.Get("allowed_roles").(string)
+	allowedRoles := options["allowed_roles"]
 
 	// Don't check the connection_string if verification is disabled
-	verifyConn := data.Get("verify_connection").(bool)
-	err := verifyConnection("mysql", connStr)
-	if err != "" {
-		return fmt.Errorf("%v", err)
-	}
-	
+	verifyConnStr := options["verify_connection"]
+    verifyConn, err := strconv.ParseBool(verifyConnStr)
+    if err != nil {
+        return fmt.Errorf("verify_connection cannot be parsed.")
+    }
+    if verifyConn {
+        err = verifyConnection("mysql", connStr)
+        if err != nil {
+            return err
+        }
+    }
+    
 	db.ConnectionString = connStr
 	db.MaxOpenConnections = maxOpenConns
 	db.MaxIdleConnections = maxIdleConns
@@ -48,7 +67,7 @@ func (config configMySQL) Connect(dbConn *sql.DB) (error) {
 	// If the connection exists, move on
 	if dbConn != nil {
 		if err := dbConn.Ping(); err == nil {
-			return dbConn, nil
+			return nil
 		}
 		// If the ping was unsuccessful, close it and ignore errors
 		// in favor of attempting to reestablish the connection
@@ -69,6 +88,11 @@ func (config configMySQL) Connect(dbConn *sql.DB) (error) {
 	return nil
 }
 
+type configConnectMySQL struct {
+	config configMySQL
+	connection *sql.DB
+}
+
 type configMySQL struct {
 	// The connection string for reaching the database
 	ConnectionString string `json:"connection_string" structs:"connection_string" mapstructure:"connection_string"`
@@ -84,10 +108,13 @@ type configMySQL struct {
 }
 
 type roleEntryMySQL struct {
-	CreationSQL       string `json:"creation_sql" mapstructure:"creation_sql" structs:"creation_sql"`
-	RevocationSQL     string `json:"revocation_sql" mapstructure:"revocation_sql" structs:"revocation_sql"`
-	RollbackSQL       string `json:"rollback_sql" mapstructure:"rollback_sql" structs:"rollback_sql"`
-	UsernameLength    int    `json:"username_length" mapstructure:"username_length" structs:"username_length"`
-	DisplaynameLength int    `json:"displayname_length" mapstructure:"displayname_length" structs:"displayname_length"`
-	RolenameLength    int    `json:"rolename_length" mapstructure:"rolename_length" structs:"rolename_length"`
+	CreationSQL        string        `json:"creation_sql" mapstructure:"creation_sql" structs:"creation_sql"`
+	RevocationSQL      string        `json:"revocation_sql" mapstructure:"revocation_sql" structs:"revocation_sql"`
+	RollbackSQL        string        `json:"rollback_sql" mapstructure:"rollback_sql" structs:"rollback_sql"`
+    ConnectionTemplate bool          `json:"connection_template" mapstructure:"connection_template" structs:"connection_template"`
+    DefaultTTL         time.Duration `json:"default_ttl" mapstructure:"default_ttl" structs:"default_ttl"`
+    MaxTTL             time.Duration `json:"max_ttl" mapstructure:"max_ttl" structs:"max_ttl"` 
+	UsernameLength     int           `json:"username_length" mapstructure:"username_length" structs:"username_length"`
+	DisplaynameLength  int           `json:"displayname_length" mapstructure:"displayname_length" structs:"displayname_length"`
+	RolenameLength     int           `json:"rolename_length" mapstructure:"rolename_length" structs:"rolename_length"`
 }

@@ -3,7 +3,6 @@ package database
 import (
 	"fmt"
 	"strings"
-	"encoding/json"
 
 	"github.com/fatih/structs"
 	"github.com/hashicorp/vault/logical"
@@ -26,39 +25,10 @@ func pathConfigConnection(b *backend) *framework.Path {
 				Description: `Database type (ex: postgres)`,
 			},
 
-			"connection_string": {
-				Type:        framework.TypeString,
-				Description: `Database connection string`,
-			},
-
-			"verify_connection": {
-				Type:        framework.TypeBool,
-				Default:     true,
-				Description: `If set, connection_string is verified by actually connecting to the database`,
-			},
-
-			"max_open_connections": {
-				Type: framework.TypeInt,
-				Description: `Maximum number of open connections to the database;
-a zero uses the default value of two and a
-negative value means unlimited`,
-			},
-
-			"max_idle_connections": {
-				Type: framework.TypeInt,
-				Description: `Maximum number of idle connections to the database;
-a zero uses the value of max_open_connections
-and a negative value disables idle connections.
-If larger than max_open_connections it will be
-reduced to the same size.`,
-			},
-
-			"allowed_roles": {
-				Type:    framework.TypeString,
-				Default: "",
-				Description: `Comma separated list of roles allowed for the database.
-When no value is given, no roles are allowed. When * is given, all roles are allowed.`,
-			},
+            "options": {
+                Type:     framework.TypeMap,
+                Description: `Database specific options as described in the docs.`,
+            },
 		},
 
 		Callbacks: map[logical.Operation]framework.OperationFunc{
@@ -82,12 +52,10 @@ func (b *backend) pathConnectionRead(req *logical.Request, data *framework.Field
 		return nil, nil
 	}
 
-	var config configPostgres
-	if err := entry.DecodeJSON(&config); err != nil {
-		return nil, err
-	}
+    // add building the config
+	
 	return &logical.Response{
-		Data: structs.New(config).Map(),
+		Data: structs.New(entry).Map(),
 	}, nil
 }
 
@@ -99,44 +67,42 @@ func (b *backend) pathConnectionWrite(
 	
 	b.dbs[dbName] = nil
 	
-	// Get the database type before attempting to verify the connection
+	// Get the database type
 	dbType := strings.ToLower(data.Get("database_type").(string))
 	if dbType == "" {
 		return logical.ErrorResponse("database_type parameter must be supplied"), nil
 	}
-	
-	var err error
-	
+    
+    options := data.Get("options").(map[string]interface{})
+    dbOptions := make(map[string]string)
+    for k, v := range options {
+        vStr, ok := v.(string)
+        if !ok {
+            return logical.ErrorResponse("options must be string valued"),
+                logical.ErrInvalidRequest
+        }
+        dbOptions[k] = vStr
+    }
+    
 	switch dbType {
 	case "postgres":
-		var dbConfig configPostgres
-		err := buildPostgres(data, &dbConfig)
+        var config configPostgres
+		err := buildPostgres(dbOptions, &config)
 	case "mysql":
-		var dbConfig configMySQL
-		err := buildMySQL(data, &dbConfig)
-//	case "mssql":
-//	case "cassandra":
-//	case "rabbitmq":
-//	case "mongodb":
+        var config configMySQL
+        err := buildMySQL(dbOptions, &config)
+    case "mssql":
+        var config configMSSQL
+        err := buildMSSQL(dbOptions, &config)
 	default:
 		return logical.ErrorResponse(fmt.Sprintf(
 			"Error validating connection info: unrecognized database type")), nil
 	}
-	
-	if err != nil {
-		return logical.ErrorResponse(fmt.Sprintf(
-				"Error validating connection info: %q", err)), nil
-	}
-	
-	configRaw, err := json.Marshal(dbConfig)
-	if err != nil {
-		return logical.ErrorResponse(fmt.Sprintf(
-				"Error validating connection info: %q", err)), nil
-	}
-	
-	var config configDB
-	config.DatabaseType = dbType
-	config.ConfigInfo = configRaw
+    
+    if err != nil {
+        return logical.ErrorResponse(fmt.Sprintf(
+			"Error validating connection info: %v"), err), nil
+    }
 
 	// Store it
 	entry, err := logical.StorageEntryJSON("dbs/"+dbName, config)
@@ -154,11 +120,6 @@ func (b *backend) pathConnectionWrite(
 	resp.AddWarning("Read access to this endpoint should be controlled via ACLs as it will return the connection string or URL as it is, including passwords, if any.")
 
 	return resp, nil
-}
-
-type configDB struct {
-	DatabaseType string `json:"database_type" mapstructure:"database_type" structs:"database_type"`
-	ConfigInfo   []byte `json:"config_info" mapstructure:"config_info" structs:"config_info"`
 }
 
 const pathConfigConnectionHelpSyn = `
