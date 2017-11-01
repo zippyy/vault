@@ -166,22 +166,22 @@ func (b *Backend) GetHash(data string) (string, error) {
 	return audit.HashString(salt, data), nil
 }
 
-func (b *Backend) LogRequest(auth *logical.Auth, req *logical.Request, outerErr error) error {
+func (b *Backend) LogRequest(auth *logical.Auth, req *logical.Request, config *logical.AuditConfig, outerErr error) error {
 	b.fileLock.Lock()
 	defer b.fileLock.Unlock()
 
 	switch b.path {
 	case "stdout":
-		return b.formatter.FormatRequest(os.Stdout, b.formatConfig, auth, req, outerErr)
+		return b.formatter.FormatRequest(os.Stdout, b.formatConfig, auth, req, config, outerErr)
 	case "discard":
-		return b.formatter.FormatRequest(ioutil.Discard, b.formatConfig, auth, req, outerErr)
+		return b.formatter.FormatRequest(ioutil.Discard, b.formatConfig, auth, req, config, outerErr)
 	}
 
 	if err := b.open(); err != nil {
 		return err
 	}
 
-	if err := b.formatter.FormatRequest(b.f, b.formatConfig, auth, req, outerErr); err == nil {
+	if err := b.formatter.FormatRequest(b.f, b.formatConfig, auth, req, config, outerErr); err == nil {
 		return nil
 	}
 
@@ -193,13 +193,14 @@ func (b *Backend) LogRequest(auth *logical.Auth, req *logical.Request, outerErr 
 		return err
 	}
 
-	return b.formatter.FormatRequest(b.f, b.formatConfig, auth, req, outerErr)
+	return b.formatter.FormatRequest(b.f, b.formatConfig, auth, req, config, outerErr)
 }
 
 func (b *Backend) LogResponse(
 	auth *logical.Auth,
 	req *logical.Request,
 	resp *logical.Response,
+	config *logical.AuditConfig,
 	err error) error {
 
 	b.fileLock.Lock()
@@ -207,16 +208,16 @@ func (b *Backend) LogResponse(
 
 	switch b.path {
 	case "stdout":
-		return b.formatter.FormatResponse(os.Stdout, b.formatConfig, auth, req, resp, err)
+		return b.formatter.FormatResponse(os.Stdout, b.formatConfig, auth, req, resp, config, err)
 	case "discard":
-		return b.formatter.FormatResponse(ioutil.Discard, b.formatConfig, auth, req, resp, err)
+		return b.formatter.FormatResponse(ioutil.Discard, b.formatConfig, auth, req, resp, config, err)
 	}
 
 	if err := b.open(); err != nil {
 		return err
 	}
 
-	if err := b.formatter.FormatResponse(b.f, b.formatConfig, auth, req, resp, err); err == nil {
+	if err := b.formatter.FormatResponse(b.f, b.formatConfig, auth, req, resp, config, err); err == nil {
 		return nil
 	}
 
@@ -228,7 +229,7 @@ func (b *Backend) LogResponse(
 		return err
 	}
 
-	return b.formatter.FormatResponse(b.f, b.formatConfig, auth, req, resp, err)
+	return b.formatter.FormatResponse(b.f, b.formatConfig, auth, req, resp, config, err)
 }
 
 // The file lock must be held before calling this

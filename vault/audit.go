@@ -493,7 +493,7 @@ func (a *AuditBroker) GetHash(name string, input string) (string, error) {
 
 // LogRequest is used to ensure all the audit backends have an opportunity to
 // log the given request and that *at least one* succeeds.
-func (a *AuditBroker) LogRequest(auth *logical.Auth, req *logical.Request, headersConfig *AuditedHeadersConfig, outerErr error) (ret error) {
+func (a *AuditBroker) LogRequest(auth *logical.Auth, req *logical.Request, config *logical.AuditConfig, headersConfig *AuditedHeadersConfig, outerErr error) (ret error) {
 	defer metrics.MeasureSince([]string{"audit", "log_request"}, time.Now())
 	a.RLock()
 	defer a.RUnlock()
@@ -537,7 +537,7 @@ func (a *AuditBroker) LogRequest(auth *logical.Auth, req *logical.Request, heade
 		req.Headers = transHeaders
 
 		start := time.Now()
-		lrErr := be.backend.LogRequest(auth, req, outerErr)
+		lrErr := be.backend.LogRequest(auth, req, config, outerErr)
 		metrics.MeasureSince([]string{"audit", name, "log_request"}, start)
 		if lrErr != nil {
 			a.logger.Error("audit: backend failed to log request", "backend", name, "error", lrErr)
@@ -555,7 +555,7 @@ func (a *AuditBroker) LogRequest(auth *logical.Auth, req *logical.Request, heade
 // LogResponse is used to ensure all the audit backends have an opportunity to
 // log the given response and that *at least one* succeeds.
 func (a *AuditBroker) LogResponse(auth *logical.Auth, req *logical.Request,
-	resp *logical.Response, headersConfig *AuditedHeadersConfig, err error) (ret error) {
+	resp *logical.Response, config *logical.AuditConfig, headersConfig *AuditedHeadersConfig, err error) (ret error) {
 	defer metrics.MeasureSince([]string{"audit", "log_response"}, time.Now())
 	a.RLock()
 	defer a.RUnlock()
@@ -592,7 +592,7 @@ func (a *AuditBroker) LogResponse(auth *logical.Auth, req *logical.Request,
 		req.Headers = transHeaders
 
 		start := time.Now()
-		lrErr := be.backend.LogResponse(auth, req, resp, err)
+		lrErr := be.backend.LogResponse(auth, req, resp, config, err)
 		metrics.MeasureSince([]string{"audit", name, "log_response"}, start)
 		if lrErr != nil {
 			a.logger.Error("audit: backend failed to log response", "backend", name, "error", lrErr)

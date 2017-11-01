@@ -542,11 +542,11 @@ func (n *noopAudit) GetHash(data string) (string, error) {
 	return salt.GetIdentifiedHMAC(data), nil
 }
 
-func (n *noopAudit) LogRequest(a *logical.Auth, r *logical.Request, e error) error {
+func (n *noopAudit) LogRequest(a *logical.Auth, r *logical.Request, c *logical.AuditConfig, e error) error {
 	return nil
 }
 
-func (n *noopAudit) LogResponse(a *logical.Auth, r *logical.Request, re *logical.Response, err error) error {
+func (n *noopAudit) LogResponse(a *logical.Auth, r *logical.Request, re *logical.Response, c *logical.AuditConfig, err error) error {
 	return nil
 }
 

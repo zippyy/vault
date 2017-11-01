@@ -5,6 +5,19 @@ import (
 	"time"
 )
 
+type RequestAuditConfig struct {
+	PassthroughDataFields []string
+}
+
+type ResponseAuditConfig struct {
+	PassthroughDataFields []string
+}
+
+type AuditConfig struct {
+	RequestConfig  *RequestAuditConfig
+	ResponseConfig *ResponseAuditConfig
+}
+
 // Auth is the resulting authentication information that is part of
 // Response for credential backends.
 type Auth struct {

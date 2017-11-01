@@ -352,6 +352,13 @@ type Core struct {
 	// CORS Information
 	corsConfig *CORSConfig
 
+	// auditConfig holds the information about auditing requirements set
+	// through the API
+	auditConfig *atomic.Value
+
+	// auditConfigLock to make changes to the audit configuration
+	auditConfigLock sync.Mutex
+
 	// The active set of upstream cluster addresses; stored via the Echo
 	// mechanism, loaded by the balancer
 	atomicPrimaryClusterAddrs *atomic.Value
@@ -1208,7 +1215,14 @@ func (c *Core) sealInitCommon(req *logical.Request) (retErr error) {
 		EntityID:    te.EntityID,
 	}
 
-	if err := c.auditBroker.LogRequest(auth, req, c.auditedHeaders, nil); err != nil {
+	if err := c.auditBroker.LogRequest(auth, req, &logical.AuditConfig{
+		RequestConfig: &logical.RequestAuditConfig{
+			PassthroughDataFields: []string{"secret_key"},
+		},
+		ResponseConfig: &logical.ResponseAuditConfig{
+			PassthroughDataFields: []string{"access_key"},
+		},
+	}, c.auditedHeaders, nil); err != nil {
 		c.logger.Error("core: failed to audit request", "request_path", req.Path, "error", err)
 		retErr = multierror.Append(retErr, errors.New("failed to audit request, cannot continue"))
 		c.stateLock.RUnlock()
@@ -1315,7 +1329,14 @@ func (c *Core) StepDown(req *logical.Request) (retErr error) {
 		EntityID:    te.EntityID,
 	}
 
-	if err := c.auditBroker.LogRequest(auth, req, c.auditedHeaders, nil); err != nil {
+	if err := c.auditBroker.LogRequest(auth, req, &logical.AuditConfig{
+		RequestConfig: &logical.RequestAuditConfig{
+			PassthroughDataFields: []string{"secret_key"},
+		},
+		ResponseConfig: &logical.ResponseAuditConfig{
+			PassthroughDataFields: []string{"access_key"},
+		},
+	}, c.auditedHeaders, nil); err != nil {
 		c.logger.Error("core: failed to audit request", "request_path", req.Path, "error", err)
 		retErr = multierror.Append(retErr, errors.New("failed to audit request, cannot continue"))
 		return retErr

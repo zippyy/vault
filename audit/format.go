@@ -30,6 +30,7 @@ func (f *AuditFormatter) FormatRequest(
 	config FormatterConfig,
 	auth *logical.Auth,
 	req *logical.Request,
+	auditConfig *logical.AuditConfig,
 	inErr error) error {
 
 	if req == nil {
@@ -96,9 +97,28 @@ func (f *AuditFormatter) FormatRequest(
 		if !config.HMACAccessor && req != nil && req.ClientTokenAccessor != "" {
 			clientTokenAccessor = req.ClientTokenAccessor
 		}
+
+		cachedRequestData := make(map[string]interface{})
+		for _, field := range auditConfig.RequestConfig.PassthroughDataFields {
+			value, ok := req.Data[field]
+			if ok {
+				cachedRequestData[field] = value
+			}
+		}
+		fmt.Printf("cachedRequestData: %#v\n", cachedRequestData)
+
 		if err := Hash(salt, req); err != nil {
 			return err
 		}
+
+		fmt.Printf("hashedRequestData: %#v\n", req.Data)
+
+		for k, v := range cachedRequestData {
+			req.Data[k] = v
+		}
+
+		fmt.Printf("restoredRequestData: %#v\n", req.Data)
+
 		if clientTokenAccessor != "" {
 			req.ClientTokenAccessor = clientTokenAccessor
 		}
@@ -158,6 +178,7 @@ func (f *AuditFormatter) FormatResponse(
 	auth *logical.Auth,
 	req *logical.Request,
 	resp *logical.Response,
+	auditConfig *logical.AuditConfig,
 	inErr error) error {
 
 	if req == nil {
@@ -233,9 +254,28 @@ func (f *AuditFormatter) FormatResponse(
 		if !config.HMACAccessor && req != nil && req.ClientTokenAccessor != "" {
 			clientTokenAccessor = req.ClientTokenAccessor
 		}
+
+		cachedRequestData := make(map[string]interface{})
+		for _, field := range auditConfig.RequestConfig.PassthroughDataFields {
+			value, ok := req.Data[field]
+			if ok {
+				cachedRequestData[field] = value
+			}
+		}
+		fmt.Printf("cachedRequestData: %#v\n", cachedRequestData)
+
 		if err := Hash(salt, req); err != nil {
 			return err
 		}
+
+		fmt.Printf("hashedRequestData: %#v\n", req.Data)
+
+		for k, v := range cachedRequestData {
+			req.Data[k] = v
+		}
+
+		fmt.Printf("restoredRequestData: %#v\n", req.Data)
+
 		if clientTokenAccessor != "" {
 			req.ClientTokenAccessor = clientTokenAccessor
 		}
@@ -249,9 +289,28 @@ func (f *AuditFormatter) FormatResponse(
 			if !config.HMACAccessor && resp != nil && resp.WrapInfo != nil && resp.WrapInfo.WrappedAccessor != "" {
 				wrappedAccessor = resp.WrapInfo.WrappedAccessor
 			}
+
+			cachedResponseData := make(map[string]interface{})
+			for _, field := range auditConfig.ResponseConfig.PassthroughDataFields {
+				value, ok := resp.Data[field]
+				if ok {
+					cachedResponseData[field] = value
+				}
+			}
+			fmt.Printf("cachedResponseData: %#v\n", cachedResponseData)
+
 			if err := Hash(salt, resp); err != nil {
 				return err
 			}
+
+			fmt.Printf("hashedResponseData: %#v\n", resp.Data)
+
+			for k, v := range cachedResponseData {
+				resp.Data[k] = v
+			}
+
+			fmt.Printf("restoredResponseData: %#v\n", resp.Data)
+
 			if accessor != "" {
 				resp.Auth.Accessor = accessor
 			}

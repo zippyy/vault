@@ -109,7 +109,14 @@ func (c *Core) HandleRequest(req *logical.Request) (resp *logical.Response, err 
 	}
 
 	// Create an audit trail of the response
-	if auditErr := c.auditBroker.LogResponse(auth, req, auditResp, c.auditedHeaders, err); auditErr != nil {
+	if auditErr := c.auditBroker.LogResponse(auth, req, auditResp, &logical.AuditConfig{
+		RequestConfig: &logical.RequestAuditConfig{
+			PassthroughDataFields: []string{"secret_key"},
+		},
+		ResponseConfig: &logical.ResponseAuditConfig{
+			PassthroughDataFields: []string{"access_key"},
+		},
+	}, c.auditedHeaders, err); auditErr != nil {
 		c.logger.Error("core: failed to audit response", "request_path", req.Path, "error", auditErr)
 		return nil, ErrInternalError
 	}
@@ -169,7 +176,14 @@ func (c *Core) handleRequest(req *logical.Request) (retResp *logical.Response, r
 			errType = logical.ErrInvalidRequest
 		}
 
-		if err := c.auditBroker.LogRequest(auth, req, c.auditedHeaders, ctErr); err != nil {
+		if err := c.auditBroker.LogRequest(auth, req, &logical.AuditConfig{
+			RequestConfig: &logical.RequestAuditConfig{
+				PassthroughDataFields: []string{"secret_key"},
+			},
+			ResponseConfig: &logical.ResponseAuditConfig{
+				PassthroughDataFields: []string{"access_key"},
+			},
+		}, c.auditedHeaders, ctErr); err != nil {
 			c.logger.Error("core: failed to audit request", "path", req.Path, "error", err)
 		}
 
@@ -186,7 +200,14 @@ func (c *Core) handleRequest(req *logical.Request) (retResp *logical.Response, r
 	req.DisplayName = auth.DisplayName
 
 	// Create an audit trail of the request
-	if err := c.auditBroker.LogRequest(auth, req, c.auditedHeaders, nil); err != nil {
+	if err := c.auditBroker.LogRequest(auth, req, &logical.AuditConfig{
+		RequestConfig: &logical.RequestAuditConfig{
+			PassthroughDataFields: []string{"secret_key"},
+		},
+		ResponseConfig: &logical.ResponseAuditConfig{
+			PassthroughDataFields: []string{"access_key"},
+		},
+	}, c.auditedHeaders, nil); err != nil {
 		c.logger.Error("core: failed to audit request", "path", req.Path, "error", err)
 		retErr = multierror.Append(retErr, ErrInternalError)
 		return nil, auth, retErr
@@ -336,7 +357,14 @@ func (c *Core) handleLoginRequest(req *logical.Request) (retResp *logical.Respon
 	// Create an audit trail of the request, auth is not available on login requests
 	// Create an audit trail of the request. Attach auth if it was returned,
 	// e.g. if a token was provided.
-	if err := c.auditBroker.LogRequest(auth, req, c.auditedHeaders, nil); err != nil {
+	if err := c.auditBroker.LogRequest(auth, req, &logical.AuditConfig{
+		RequestConfig: &logical.RequestAuditConfig{
+			PassthroughDataFields: []string{"secret_key"},
+		},
+		ResponseConfig: &logical.ResponseAuditConfig{
+			PassthroughDataFields: []string{"access_key"},
+		},
+	}, c.auditedHeaders, nil); err != nil {
 		c.logger.Error("core: failed to audit request", "path", req.Path, "error", err)
 		return nil, nil, ErrInternalError
 	}
