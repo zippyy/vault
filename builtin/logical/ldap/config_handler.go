@@ -8,13 +8,8 @@ import (
 	"github.com/hashicorp/vault/helper/ldap"
 )
 
-func newConfigurationHandler() ConfigurationHandler {
+func newConfigurationHandler() *configurationHandler {
 	return &configurationHandler{}
-}
-
-type ConfigurationHandler interface {
-	Path() string
-	Handle() *framework.Path
 }
 
 type configurationHandler struct{}
