@@ -13,8 +13,17 @@ import (
 	"strings"
 )
 
+func NewClient(conf *Configuration) Client {
+	return &client{conf}
+}
+
+type Client interface {
+	GetTLSConfig(host string) (*tls.Config, error)
+	DialLDAP() (*ldap.Conn, error)
+}
+
 type client struct {
-	conf *clientConfig
+	conf *Configuration
 }
 
 func (c *client) GetTLSConfig(host string) (*tls.Config, error) {

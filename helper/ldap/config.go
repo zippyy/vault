@@ -10,27 +10,27 @@ import (
 	"text/template"
 )
 
-func newClientConfig(d *framework.FieldData) (*clientConfig, error) {
+func NewConfiguration(fieldData *framework.FieldData) (*Configuration, error) {
 
-	cfg := &clientConfig{}
+	conf := &Configuration{}
 
-	url := d.Get("url").(string)
+	url := fieldData.Get("url").(string)
 	if url != "" {
-		cfg.Url = strings.ToLower(url)
+		conf.Url = strings.ToLower(url)
 	}
-	userattr := d.Get("userattr").(string)
+	userattr := fieldData.Get("userattr").(string)
 	if userattr != "" {
-		cfg.UserAttr = strings.ToLower(userattr)
+		conf.UserAttr = strings.ToLower(userattr)
 	}
-	userdn := d.Get("userdn").(string)
+	userdn := fieldData.Get("userdn").(string)
 	if userdn != "" {
-		cfg.UserDN = userdn
+		conf.UserDN = userdn
 	}
-	groupdn := d.Get("groupdn").(string)
+	groupdn := fieldData.Get("groupdn").(string)
 	if groupdn != "" {
-		cfg.GroupDN = groupdn
+		conf.GroupDN = groupdn
 	}
-	groupfilter := d.Get("groupfilter").(string)
+	groupfilter := fieldData.Get("groupfilter").(string)
 	if groupfilter != "" {
 		// Validate the template before proceeding
 		_, err := template.New("queryTemplate").Parse(groupfilter)
@@ -38,17 +38,17 @@ func newClientConfig(d *framework.FieldData) (*clientConfig, error) {
 			return nil, fmt.Errorf("invalid groupfilter (%v)", err)
 		}
 
-		cfg.GroupFilter = groupfilter
+		conf.GroupFilter = groupfilter
 	}
-	groupattr := d.Get("groupattr").(string)
+	groupattr := fieldData.Get("groupattr").(string)
 	if groupattr != "" {
-		cfg.GroupAttr = groupattr
+		conf.GroupAttr = groupattr
 	}
-	upndomain := d.Get("upndomain").(string)
+	upndomain := fieldData.Get("upndomain").(string)
 	if upndomain != "" {
-		cfg.UPNDomain = upndomain
+		conf.UPNDomain = upndomain
 	}
-	certificate := d.Get("certificate").(string)
+	certificate := fieldData.Get("certificate").(string)
 	if certificate != "" {
 		block, _ := pem.Decode([]byte(certificate))
 
@@ -59,60 +59,60 @@ func newClientConfig(d *framework.FieldData) (*clientConfig, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed to parse certificate %s", err.Error())
 		}
-		cfg.Certificate = certificate
+		conf.Certificate = certificate
 	}
-	insecureTLS := d.Get("insecure_tls").(bool)
+	insecureTLS := fieldData.Get("insecure_tls").(bool)
 	if insecureTLS {
-		cfg.InsecureTLS = insecureTLS
+		conf.InsecureTLS = insecureTLS
 	}
-	cfg.TLSMinVersion = d.Get("tls_min_version").(string)
-	if cfg.TLSMinVersion == "" {
+	conf.TLSMinVersion = fieldData.Get("tls_min_version").(string)
+	if conf.TLSMinVersion == "" {
 		return nil, fmt.Errorf("failed to get 'tls_min_version' value")
 	}
 
 	var ok bool
-	_, ok = tlsutil.TLSLookup[cfg.TLSMinVersion]
+	_, ok = tlsutil.TLSLookup[conf.TLSMinVersion]
 	if !ok {
 		return nil, fmt.Errorf("invalid 'tls_min_version'")
 	}
 
-	cfg.TLSMaxVersion = d.Get("tls_max_version").(string)
-	if cfg.TLSMaxVersion == "" {
+	conf.TLSMaxVersion = fieldData.Get("tls_max_version").(string)
+	if conf.TLSMaxVersion == "" {
 		return nil, fmt.Errorf("failed to get 'tls_max_version' value")
 	}
 
-	_, ok = tlsutil.TLSLookup[cfg.TLSMaxVersion]
+	_, ok = tlsutil.TLSLookup[conf.TLSMaxVersion]
 	if !ok {
 		return nil, fmt.Errorf("invalid 'tls_max_version'")
 	}
-	if cfg.TLSMaxVersion < cfg.TLSMinVersion {
+	if conf.TLSMaxVersion < conf.TLSMinVersion {
 		return nil, fmt.Errorf("'tls_max_version' must be greater than or equal to 'tls_min_version'")
 	}
 
-	startTLS := d.Get("starttls").(bool)
+	startTLS := fieldData.Get("starttls").(bool)
 	if startTLS {
-		cfg.StartTLS = startTLS
+		conf.StartTLS = startTLS
 	}
-	bindDN := d.Get("binddn").(string)
+	bindDN := fieldData.Get("binddn").(string)
 	if bindDN != "" {
-		cfg.BindDN = bindDN
+		conf.BindDN = bindDN
 	}
-	bindPass := d.Get("bindpass").(string)
+	bindPass := fieldData.Get("bindpass").(string)
 	if bindPass != "" {
-		cfg.BindPassword = bindPass
+		conf.BindPassword = bindPass
 	}
-	denyNullBind := d.Get("deny_null_bind").(bool)
+	denyNullBind := fieldData.Get("deny_null_bind").(bool)
 	if denyNullBind {
-		cfg.DenyNullBind = denyNullBind
+		conf.DenyNullBind = denyNullBind
 	}
-	discoverDN := d.Get("discoverdn").(bool)
+	discoverDN := fieldData.Get("discoverdn").(bool)
 	if discoverDN {
-		cfg.DiscoverDN = discoverDN
+		conf.DiscoverDN = discoverDN
 	}
-	return cfg, nil
+	return conf, nil
 }
 
-type clientConfig struct {
+type Configuration struct {
 	Url           string `json:"url" structs:"url" mapstructure:"url"`
 	UserDN        string `json:"userdn" structs:"userdn" mapstructure:"userdn"`
 	GroupDN       string `json:"groupdn" structs:"groupdn" mapstructure:"groupdn"`

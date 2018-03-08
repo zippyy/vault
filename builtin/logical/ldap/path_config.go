@@ -5,6 +5,7 @@ import (
 	"github.com/fatih/structs"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
+	"github.com/hashicorp/vault/helper/ldap"
 )
 
 func newConfigurationHandler() ConfigurationHandler {
@@ -135,13 +136,13 @@ func (h *configurationHandler) handleReadOperation(ctx context.Context, req *log
 		return nil, err
 	}
 
-	cfg := &clientConfig{}
-	if err := entry.DecodeJSON(cfg); err != nil {
+	ldapClientConf := &ldap.Configuration{}
+	if err := entry.DecodeJSON(ldapClientConf); err != nil {
 		return nil, err
 	}
 
 	resp := &logical.Response{
-		Data: structs.New(cfg).Map(),
+		Data: structs.New(ldapClientConf).Map(),
 	}
 	resp.AddWarning("Read access to this endpoint should be controlled via ACLs as it will return the configuration information as-is, including any passwords.")
 	return resp, nil
@@ -149,12 +150,12 @@ func (h *configurationHandler) handleReadOperation(ctx context.Context, req *log
 
 func (h *configurationHandler) handleUpdateOperation(ctx context.Context, req *logical.Request, fieldData *framework.FieldData) (*logical.Response, error) {
 
-	cfg, err := newClientConfig(fieldData)
+	ldapClientConf, err := ldap.NewConfiguration(fieldData)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), err
 	}
 
-	entry, err := logical.StorageEntryJSON(h.Path(), cfg)
+	entry, err := logical.StorageEntryJSON(h.Path(), ldapClientConf)
 	if err != nil {
 		return nil, err
 	}
