@@ -46,6 +46,7 @@ import (
 	credToken "github.com/hashicorp/vault/builtin/credential/token"
 	credUserpass "github.com/hashicorp/vault/builtin/credential/userpass"
 
+	"github.com/hashicorp/vault/builtin/logical/ldap"
 	physAzure "github.com/hashicorp/vault/physical/azure"
 	physCassandra "github.com/hashicorp/vault/physical/cassandra"
 	physCockroachDB "github.com/hashicorp/vault/physical/cockroachdb"
@@ -101,6 +102,7 @@ var (
 		"cassandra":  cassandra.Factory,
 		"consul":     consul.Factory,
 		"database":   database.Factory,
+		"ldap":       ldap.Factory,
 		"mongodb":    mongodb.Factory,
 		"mssql":      mssql.Factory,
 		"mysql":      mysql.Factory,
