@@ -7,10 +7,6 @@ import (
 )
 
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
-	return NewBackend(), nil
-}
-
-func NewBackend() logical.Backend {
 
 	confHandler := newConfigurationHandler()
 
@@ -25,5 +21,5 @@ func NewBackend() logical.Backend {
 			},
 		},
 		BackendType: logical.TypeLogical,
-	}
+	}, nil
 }
