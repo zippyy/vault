@@ -7,10 +7,6 @@ import (
 )
 
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
-	// so this is hit right when you do
-	// `$ vault secrets enable ldap`
-	// because the factory is registered under its name of 'ldap'
-	// in commands.go
 	return NewBackend(), nil
 }
 
