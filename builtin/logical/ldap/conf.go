@@ -8,17 +8,17 @@ import (
 	"github.com/hashicorp/vault/helper/ldap"
 )
 
-func newConfigurationHandler() *configurationHandler {
-	return &configurationHandler{}
+func newConfigurationRequestHandler() *configurationRequestHandler {
+	return &configurationRequestHandler{}
 }
 
-type configurationHandler struct{}
+type configurationRequestHandler struct{}
 
-func (h *configurationHandler) Path() string {
+func (h *configurationRequestHandler) Path() string {
 	return "config"
 }
 
-func (h *configurationHandler) Handle() *framework.Path {
+func (h *configurationRequestHandler) Handle() *framework.Path {
 	return &framework.Path{
 		Pattern: h.Path(),
 		Fields: map[string]*framework.FieldSchema{
@@ -124,7 +124,7 @@ Default: cn`,
 	}
 }
 
-func (h *configurationHandler) handleReadOperation(ctx context.Context, req *logical.Request, fieldData *framework.FieldData) (*logical.Response, error) {
+func (h *configurationRequestHandler) handleReadOperation(ctx context.Context, req *logical.Request, fieldData *framework.FieldData) (*logical.Response, error) {
 
 	entry, err := req.Storage.Get(ctx, h.Path())
 	if err != nil {
@@ -143,7 +143,7 @@ func (h *configurationHandler) handleReadOperation(ctx context.Context, req *log
 	return resp, nil
 }
 
-func (h *configurationHandler) handleUpdateOperation(ctx context.Context, req *logical.Request, fieldData *framework.FieldData) (*logical.Response, error) {
+func (h *configurationRequestHandler) handleUpdateOperation(ctx context.Context, req *logical.Request, fieldData *framework.FieldData) (*logical.Response, error) {
 
 	ldapClientConf, err := ldap.NewConfiguration(fieldData)
 	if err != nil {

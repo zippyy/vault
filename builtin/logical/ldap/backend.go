@@ -8,16 +8,29 @@ import (
 
 func Factory(ctx context.Context, conf *logical.BackendConfig) (logical.Backend, error) {
 
-	confHandler := newConfigurationHandler()
+	// DRAFT OF API ENDPOINTS
+	//
+	// Method     Path             Requirement
+	//
+	// LIST       /ldap/users      Lists users to get their ID for managing them - but could this be thousands of people?
+	// GET        /ldap/user/:id   Reads a user by ID
+	// PUT        /ldap/user       Use the post body to update their name, pass, or group
+	//
+	// LIST       /ldap/roles      Lists all roles to help manage them
+	// PUT        /ldap/role/:id   Edit an existing role
+	//
+	// GET        /ldap/creds      Fetches a new credential
 
-	// TODO rotating a password is a requirement
-	// In PKI, the way you rotate a CRL is this:
-	// GET 	/pki/crl/rotate 	200 application/json
-	// So maybe it would be similar to that
+	confHandler := newConfigurationRequestHandler()
+	userHandler := newUserRequestHandler()
+	roleHandler := newRoleRequestHandler()
+
 	return &framework.Backend{
 		Help: "TODO",
 		Paths: []*framework.Path{
 			confHandler.Handle(),
+			userHandler.Handle(),
+			roleHandler.Handle(),
 		},
 		PathsSpecial: &logical.Paths{
 			SealWrapStorage: []string{
