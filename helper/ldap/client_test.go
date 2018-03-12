@@ -4,9 +4,11 @@ import (
 	"testing"
 	"fmt"
 	"github.com/go-ldap/ldap"
+	"golang.org/x/text/encoding/unicode"
+	"crypto/tls"
 )
 
-func TestClientWorks(t *testing.T) {
+func TestCanChangeARealPassword(t *testing.T) {
 
 	username := "redacted"
 	password := "redacted"
@@ -27,6 +29,15 @@ func TestClientWorks(t *testing.T) {
 		t.FailNow()
 	}
 
+	tlsConf := &tls.Config{
+		InsecureSkipVerify: true, // TODO this is obviously not ideal..... :-)
+	}
+	if err := conn.StartTLS(tlsConf); err != nil {
+		fmt.Println("couldn't start TLS: " + err.Error())
+		t.FailNow()
+	}
+
+	// search for a user
 	searchRequest := &ldap.SearchRequest{
 		BaseDN: "dc=example,dc=com",
 		Scope: 2,
@@ -43,4 +54,35 @@ func TestClientWorks(t *testing.T) {
 			fmt.Printf("Name: %s; Values: %s\n", attribute.Name, attribute.Values)
 		}
 	}
+	if len(searchResult.Entries) != 1 {
+		fmt.Println("wuut? not just one entry?")
+		t.FailNow()
+	}
+	fmt.Println("")
+
+	// This is Active Directory specific because AD doesn't recognize the
+	// passwordModify method.
+	// See https://github.com/go-ldap/ldap/issues/106
+	// This probably means this will need to be an Active Directory integration,
+	// NOT an LDAP one. The integrations could be identical but there could
+	// be a toggle on the client for which type it is, or something.
+	utf16 := unicode.UTF16(unicode.LittleEndian, unicode.IgnoreBOM)
+	// According to the MS docs in the links above
+	// The password needs to be enclosed in quotes
+	pwdEncoded, err := utf16.NewEncoder().String("\"7KittyCatz?\"")
+	if err != nil {
+		fmt.Printf("unable to encode password: %s\n", err.Error())
+		t.FailNow()
+	}
+	passReq := &ldap.ModifyRequest{
+		DN: searchResult.Entries[0].DN,
+		ReplaceAttributes: []ldap.PartialAttribute{
+			{"unicodePwd", []string{pwdEncoded}},
+		},
+	}
+	if err := conn.Modify(passReq); err != nil {
+		fmt.Printf("unable to modify password: %s\n", err.Error())
+		t.FailNow()
+	}
+	fmt.Println("successfully changed an active directory password!")
 }
