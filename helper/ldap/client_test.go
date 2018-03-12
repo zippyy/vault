@@ -1,11 +1,11 @@
 package ldap
 
 import (
-	"testing"
+	"crypto/tls"
 	"fmt"
 	"github.com/go-ldap/ldap"
 	"golang.org/x/text/encoding/unicode"
-	"crypto/tls"
+	"testing"
 )
 
 func TestCanChangeARealPassword(t *testing.T) {
@@ -40,7 +40,7 @@ func TestCanChangeARealPassword(t *testing.T) {
 	// search for a user
 	searchRequest := &ldap.SearchRequest{
 		BaseDN: "dc=example,dc=com",
-		Scope: 2,
+		Scope:  2,
 		Filter: "(cn=Becca Petrin)",
 	}
 	searchResult, err := conn.Search(searchRequest)

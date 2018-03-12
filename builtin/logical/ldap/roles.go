@@ -6,7 +6,7 @@ func newRoleRequestHandler() *roleRequestHandler {
 	return &roleRequestHandler{}
 }
 
-type roleRequestHandler struct {}
+type roleRequestHandler struct{}
 
 func (h *roleRequestHandler) Handle() *framework.Path {
 	// TODO

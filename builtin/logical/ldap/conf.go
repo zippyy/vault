@@ -3,9 +3,9 @@ package ldap
 import (
 	"context"
 	"github.com/fatih/structs"
+	"github.com/hashicorp/vault/helper/ldap"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
-	"github.com/hashicorp/vault/helper/ldap"
 )
 
 func newConfigurationRequestHandler() *configurationRequestHandler {
