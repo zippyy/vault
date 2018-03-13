@@ -1,11 +1,11 @@
-package ldap
+package activedirectory
 
 import (
 	"context"
 	"github.com/fatih/structs"
+	"github.com/hashicorp/vault/helper/activedirectory"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
-	"github.com/hashicorp/vault/helper/ldap"
 )
 
 func newConfigurationRequestHandler() *configurationRequestHandler {
@@ -131,7 +131,7 @@ func (h *configurationRequestHandler) handleReadOperation(ctx context.Context, r
 		return nil, err
 	}
 
-	ldapClientConf := &ldap.Configuration{}
+	ldapClientConf := &activedirectory.Configuration{}
 	if err := entry.DecodeJSON(ldapClientConf); err != nil {
 		return nil, err
 	}
@@ -145,7 +145,7 @@ func (h *configurationRequestHandler) handleReadOperation(ctx context.Context, r
 
 func (h *configurationRequestHandler) handleUpdateOperation(ctx context.Context, req *logical.Request, fieldData *framework.FieldData) (*logical.Response, error) {
 
-	ldapClientConf, err := ldap.NewConfiguration(fieldData)
+	ldapClientConf, err := activedirectory.NewConfiguration(fieldData)
 	if err != nil {
 		return logical.ErrorResponse(err.Error()), err
 	}

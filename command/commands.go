@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/vault/version"
 	"github.com/mitchellh/cli"
 
+	"github.com/hashicorp/vault/builtin/logical/activedirectory"
 	"github.com/hashicorp/vault/builtin/logical/aws"
 	"github.com/hashicorp/vault/builtin/logical/cassandra"
 	"github.com/hashicorp/vault/builtin/logical/consul"
@@ -46,7 +47,6 @@ import (
 	credToken "github.com/hashicorp/vault/builtin/credential/token"
 	credUserpass "github.com/hashicorp/vault/builtin/credential/userpass"
 
-	"github.com/hashicorp/vault/builtin/logical/ldap"
 	physAzure "github.com/hashicorp/vault/physical/azure"
 	physCassandra "github.com/hashicorp/vault/physical/cassandra"
 	physCockroachDB "github.com/hashicorp/vault/physical/cockroachdb"
@@ -98,22 +98,22 @@ var (
 	}
 
 	logicalBackends = map[string]logical.Factory{
-		"aws":        aws.Factory,
-		"cassandra":  cassandra.Factory,
-		"consul":     consul.Factory,
-		"database":   database.Factory,
-		"ldap":       ldap.Factory,
-		"mongodb":    mongodb.Factory,
-		"mssql":      mssql.Factory,
-		"mysql":      mysql.Factory,
-		"nomad":      nomad.Factory,
-		"pki":        pki.Factory,
-		"plugin":     plugin.Factory,
-		"postgresql": postgresql.Factory,
-		"rabbitmq":   rabbitmq.Factory,
-		"ssh":        ssh.Factory,
-		"totp":       totp.Factory,
-		"transit":    transit.Factory,
+		"aws":              aws.Factory,
+		"cassandra":        cassandra.Factory,
+		"consul":           consul.Factory,
+		"database":         database.Factory,
+		"active directory": activedirectory.Factory,
+		"mongodb":          mongodb.Factory,
+		"mssql":            mssql.Factory,
+		"mysql":            mysql.Factory,
+		"nomad":            nomad.Factory,
+		"pki":              pki.Factory,
+		"plugin":           plugin.Factory,
+		"postgresql":       postgresql.Factory,
+		"rabbitmq":         rabbitmq.Factory,
+		"ssh":              ssh.Factory,
+		"totp":             totp.Factory,
+		"transit":          transit.Factory,
 	}
 
 	physicalBackends = map[string]physical.Factory{
