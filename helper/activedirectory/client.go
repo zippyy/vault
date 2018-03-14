@@ -48,8 +48,8 @@ func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) (
 	}
 
 	entries := make([]*Entry, len(result.Entries))
-	for _, rawEntry := range result.Entries {
-		entries = append(entries, NewEntry(rawEntry))
+	for i, rawEntry := range result.Entries {
+		entries[i] = NewEntry(rawEntry)
 	}
 	return entries, nil
 }
@@ -249,7 +249,7 @@ func (c *client) getTLSConfig(host string) (*tls.Config, error) {
 
 // Ex. "dc=example,dc=com"
 func toDNString(baseDN map[Field][]string) string {
-	fieldValues := make([]string, len(baseDN))
+	var fieldValues []string
 	for f, values := range baseDN {
 		for _, v := range values {
 			fieldValues = append(fieldValues, fmt.Sprintf("%s=%s", f, v))
