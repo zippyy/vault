@@ -19,23 +19,21 @@ func NewClient(conf *Configuration) Client {
 }
 
 type Client interface {
-	Search(baseDN string, filter string) ([]*ldap.Entry, error)
-
-	UpdatePassword(baseDN string, filter string, newPassword string) error
-
-	UpdateUsername(baseDN string, filter string, newUsername string) error
+	Search(baseDN map[Field][]string, filters map[Field][]string) ([]*Entry, error)
+	UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error
+	UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername string) error
 }
 
 type client struct {
 	conf *Configuration
 }
 
-func (c *client) Search(baseDN string, filter string) ([]*ldap.Entry, error) {
+func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) ([]*Entry, error) {
 
 	req := &ldap.SearchRequest{
-		BaseDN: baseDN,
+		BaseDN: toDNString(baseDN),
 		Scope:  2, // TODO ???
-		Filter: filter,
+		Filter: toFilterString(filters),
 	}
 
 	conn, err := c.getConnection()
@@ -49,19 +47,23 @@ func (c *client) Search(baseDN string, filter string) ([]*ldap.Entry, error) {
 		return nil, err
 	}
 
-	return result.Entries, nil
+	entries := make([]*Entry, len(result.Entries))
+	for _, rawEntry := range result.Entries {
+		entries = append(entries, NewEntry(rawEntry))
+	}
+	return entries, nil
 }
 
-func (c *client) UpdatePassword(baseDN string, filter string, newPassword string) error {
+func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error {
 
 	// TODO - also what if they haven't bound or authenticated with a cert? how return that err?
 
-	entries, err := c.Search(baseDN, filter)
+	entries, err := c.Search(baseDN, filters)
 	if err != nil {
 		return err
 	}
 	if len(entries) != 1 {
-		return fmt.Errorf("password filter of %s doesn't match just one entry: %s", filter, entries)
+		return fmt.Errorf("password filter of %s doesn't match just one entry: %s", filters, entries)
 	}
 
 	// Active Directory doesn't recognize the passwordModify method.
@@ -75,10 +77,15 @@ func (c *client) UpdatePassword(baseDN string, filter string, newPassword string
 		return err
 	}
 
+	dn, found := entries[0].GetJoined(DomainName)
+	if !found {
+		return fmt.Errorf("no dn found on %s", entries[0])
+	}
+
 	passReq := &ldap.ModifyRequest{
-		DN: entries[0].DN,
+		DN: dn,
 		ReplaceAttributes: []ldap.PartialAttribute{
-			{"unicodePwd", []string{pwdEncoded}},
+			{UnicodePassword, []string{pwdEncoded}},
 		},
 	}
 
@@ -91,20 +98,25 @@ func (c *client) UpdatePassword(baseDN string, filter string, newPassword string
 	return conn.Modify(passReq)
 }
 
-func (c *client) UpdateUsername(baseDN string, filter string, newUsername string) error {
+func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername string) error {
 
-	entries, err := c.Search(baseDN, filter)
+	entries, err := c.Search(baseDN, filters)
 	if err != nil {
 		return err
 	}
 	if len(entries) != 1 {
-		return fmt.Errorf("update filter of %s doesn't match just one entry: %s", filter, entries)
+		return fmt.Errorf("update filter of %s doesn't match just one entry: %s", filters, entries)
+	}
+
+	dn, found := entries[0].GetJoined(DomainName)
+	if !found {
+		return fmt.Errorf("no dn found on %s", entries[0])
 	}
 
 	modifyRequest := &ldap.ModifyRequest{
-		DN: entries[0].DN,
+		DN: dn,
 		ReplaceAttributes: []ldap.PartialAttribute{ // TODO which attributes?
-			{"givenName", []string{newUsername}}, // TODO escape with quotes? and only attribute to update?
+			{GivenName, []string{newUsername}}, // TODO escape with quotes? and only attribute to update?
 		},
 	}
 
@@ -233,4 +245,21 @@ func (c *client) getTLSConfig(host string) (*tls.Config, error) {
 		tlsConfig.RootCAs = caPool
 	}
 	return tlsConfig, nil
+}
+
+// Ex. "dc=example,dc=com"
+func toDNString(baseDN map[Field][]string) string {
+	fieldValues := make([]string, len(baseDN))
+	for f, values := range baseDN {
+		for _, v := range values {
+			fieldValues = append(fieldValues, fmt.Sprintf("%s=%s", f, v))
+		}
+	}
+	return strings.Join(fieldValues, ",")
+}
+
+// Ex. "(cn=Ellen Jones)"
+func toFilterString(filters map[Field][]string) string {
+	result := toDNString(filters)
+	return "(" + result + ")"
 }
