@@ -9,14 +9,8 @@ import (
 	"fmt"
 )
 
-// TODO Need to test the shit out of this thing and capture fixtures.
-
 var completeConfig = &Configuration{
-	Url:           "ldap://138.91.247.105:389",
-	InsecureTLS:   true,
-	StartTLS:      false, // TODO this should default to true
-	TLSMinVersion: "tls11", // TODO it shouldn't default to lower than this, testme
-	TLSMaxVersion: "tls12", // TODO it should default to this, testme
+	StartTLS:      false,
 	Username:      "redacted",
 	Password:      "redacted",
 }
@@ -196,54 +190,6 @@ func TestUpdateUsername(t *testing.T) {
 		t.Errorf("failed to update username: %s", err.Error())
 		t.FailNow()
 	}
-}
-
-func TestMultipleUrls(t *testing.T) {
-	// TODO
-}
-
-func TestNoUrls(t *testing.T) {
-	// TODO
-}
-
-func TestNoCertificate(t *testing.T) {
-	// TODO
-}
-
-func TestInsecureTLS(t *testing.T) {
-	// TODO
-}
-
-func TestDontStartTLS(t *testing.T) {
-	// TODO
-}
-
-func TestNoTLSMinVersion(t *testing.T) {
-
-	customConfig := completeConfig
-	customConfig.StartTLS = true
-	customConfig.TLSMaxVersion = ""
-	customConfig.TLSMinVersion = ""
-
-	client := NewClient(customConfig)
-
-	baseDN := map[Field][]string{
-		DomainComponent: {"example", "com"},
-	}
-
-	filters := map[Field][]string{
-		Surname: {"Kalafut"},
-	}
-
-	_, err := client.Search(baseDN, filters)
-	if err != nil {
-		t.Error(err.Error())
-		t.FailNow()
-	}
-}
-
-func TestNoTLSMaxVersion(t *testing.T) {
-	// TODO
 }
 
 type fakeLDAPClient struct {
