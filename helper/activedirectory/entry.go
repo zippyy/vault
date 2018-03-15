@@ -3,24 +3,27 @@ package activedirectory
 import (
 	"github.com/go-ldap/ldap"
 	"strings"
+	log "github.com/mgutz/logxi/v1"
 )
 
 // Entry is an Active Directory-specific construct
-// to make knowing and grabbing fields more convenient.
+// to make knowing and grabbing fields more convenient,
+// while retaining all original information.
 func NewEntry(ldapEntry *ldap.Entry) *Entry {
 	m := make(map[Field][]string)
 	for _, attribute := range ldapEntry.Attributes {
 		field, err := Parse(attribute.Name)
 		if err != nil {
-			// TODO warn that an unexpected field was seen, but don't fail
+			log.Warn("no field exists in the ActiveDirectory registry for %s, ignoring it")
 			continue
 		}
 		m[field] = attribute.Values
 	}
-	return &Entry{m: m}
+	return &Entry{m: m, Entry: ldapEntry}
 }
 
 type Entry struct {
+	*ldap.Entry
 	m map[Field][]string
 }
 
@@ -35,4 +38,8 @@ func (e *Entry) GetJoined(field Field) (string, bool) {
 		return "", false
 	}
 	return strings.Join(values, ","), true
+}
+
+func (e *Entry) AsMap() map[Field][]string {
+	return e.m
 }

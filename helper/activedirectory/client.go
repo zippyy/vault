@@ -12,20 +12,44 @@ import (
 	"net"
 	"net/url"
 	"strings"
+	"github.com/hashicorp/vault/helper/ldapifc"
+	"github.com/go-errors/errors"
 )
 
 func NewClient(conf *Configuration) Client {
-	return &client{conf}
+	return &client{conf, ldapifc.NewClient()}
+}
+
+// TODO this is kind of a stupid name
+func NewClientWith(conf *Configuration, ldapClient ldapifc.Client) Client {
+	return &client{conf, ldapClient}
 }
 
 type Client interface {
 	Search(baseDN map[Field][]string, filters map[Field][]string) ([]*Entry, error)
+	UpdateEntry(baseDN map[Field][]string, filters map[Field][]string, newValues map[Field][]string) error // TODO add test
+
+	// UpdatePassword sets a new password for one user.
 	UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error
-	UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername string) error
+
+	// UpdateUsername is a convenience method for updating usernames.
+	// It updates the following fields:
+	//     - CommonName
+	//     - DisplayName
+	//     - GivenName
+	//     - Name
+	//     - Surname
+	// It does not update these fields so emails and SAM automation will be unaffected.
+	//     - userPrincipalName
+	//     - SAMAccountName
+	// If a different set of fields is desired, use UpdateEntry and specify the fields directly instead.
+	// TODO it turns out the userPrincipal name uses everything before @ for the login name, ex. becca@example.com so I log in as becca
+	UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername *Username) error
 }
 
 type client struct {
 	conf *Configuration
+	ldapClient ldapifc.Client
 }
 
 func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) ([]*Entry, error) {
@@ -36,7 +60,7 @@ func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) (
 		Filter: toFilterString(filters),
 	}
 
-	conn, err := c.getConnection()
+	conn, err := c.getBoundConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -54,16 +78,44 @@ func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) (
 	return entries, nil
 }
 
-func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error {
-
-	// TODO - also what if they haven't bound or authenticated with a cert? how return that err?
+func (c *client) UpdateEntry(baseDN map[Field][]string, filters map[Field][]string, newValues map[Field][]string) error {
 
 	entries, err := c.Search(baseDN, filters)
 	if err != nil {
 		return err
 	}
 	if len(entries) != 1 {
-		return fmt.Errorf("password filter of %s doesn't match just one entry: %s", filters, entries)
+		return fmt.Errorf("filter of %s doesn't match just one entry: %s", filters, entries)
+	}
+
+	replaceAttributes := make([]ldap.PartialAttribute, len(newValues))
+	i := 0
+	for k, v := range newValues {
+		replaceAttributes[i] = ldap.PartialAttribute{
+			Type: fmt.Sprintf("%s", k),
+			Vals: v,
+		}
+		i++
+	}
+
+	modifyReq := &ldap.ModifyRequest{
+		DN: entries[0].DN,
+		ReplaceAttributes: replaceAttributes,
+	}
+
+	conn, err := c.getBoundConnection()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	return conn.Modify(modifyReq)
+}
+
+func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error {
+
+	if !c.conf.StartTLS {
+		return errors.New("per Active Directory, a TLS session must be in progress to update passswords, please update your StartTLS setting")
 	}
 
 	// Active Directory doesn't recognize the passwordModify method.
@@ -77,59 +129,46 @@ func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]s
 		return err
 	}
 
-	dn, found := entries[0].GetJoined(DomainName)
-	if !found {
-		return fmt.Errorf("no dn found on %s", entries[0])
+	newValues := map[Field][]string {
+		UnicodePassword: {pwdEncoded},
 	}
 
-	passReq := &ldap.ModifyRequest{
-		DN: dn,
-		ReplaceAttributes: []ldap.PartialAttribute{
-			{UnicodePassword, []string{pwdEncoded}},
-		},
-	}
-
-	conn, err := c.getConnection()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	return conn.Modify(passReq)
+	return c.UpdateEntry(baseDN, filters, newValues)
 }
 
-func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername string) error {
-
-	entries, err := c.Search(baseDN, filters)
-	if err != nil {
-		return err
-	}
-	if len(entries) != 1 {
-		return fmt.Errorf("update filter of %s doesn't match just one entry: %s", filters, entries)
-	}
-
-	dn, found := entries[0].GetJoined(DomainName)
-	if !found {
-		return fmt.Errorf("no dn found on %s", entries[0])
-	}
-
-	modifyRequest := &ldap.ModifyRequest{
-		DN: dn,
-		ReplaceAttributes: []ldap.PartialAttribute{ // TODO which attributes?
-			{GivenName, []string{newUsername}}, // TODO escape with quotes? and only attribute to update?
-		},
-	}
-
-	conn, err := c.getConnection()
-	if err != nil {
-		return err
-	}
-	defer conn.Close()
-
-	return conn.Modify(modifyRequest)
+type Username struct {
+	FirstName string // ex. "Becca"
+	Initials string // ex. "A"
+	LastName string // ex. "Petrin"
 }
 
-func (c *client) getConnection() (*ldap.Conn, error) {
+func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername *Username) error {
+
+	// Validate that we received an expected username so we can do gymnastics to format various fields.
+	if !isMixedCase(newUsername.FirstName) {
+		return fmt.Errorf("expected first name %s to be mixed case, ex. 'Tien'", newUsername.FirstName)
+	}
+	if !isValidInitial(newUsername.Initials) {
+		return fmt.Errorf("expected initial %s to be capitalized and without a period, ex. 'W'", newUsername.Initials)
+	}
+	if !isMixedCase(newUsername.LastName) {
+		return fmt.Errorf("expected last name %s to be mixed case, ex. 'Nguyen'", newUsername.LastName)
+	}
+
+	newFullName := fmt.Sprintf("%s %s. %s", newUsername.FirstName, newUsername.Initials, newUsername.LastName)
+
+	newValues := map[Field][]string {
+		//CommonName: {newFullName},
+		DisplayName: {newFullName},
+		GivenName: {newUsername.FirstName},
+		//Name: {newFullName},
+		Surname: {newUsername.LastName},
+	}
+
+	return c.UpdateEntry(baseDN, filters, newValues)
+}
+
+func (c *client) getBoundConnection() (*ldap.Conn, error) {
 
 	var retErr *multierror.Error
 
@@ -138,6 +177,10 @@ func (c *client) getConnection() (*ldap.Conn, error) {
 		conn, err := c.connect(uut)
 		if err != nil {
 			retErr = multierror.Append(retErr, fmt.Errorf("error parsing url %q: %s", uut, err.Error()))
+			continue
+		}
+		if err := conn.Bind(c.conf.Username, c.conf.Password); err != nil {
+			retErr = multierror.Append(retErr, fmt.Errorf("error binding to url %q: %s", uut, err.Error()))
 			continue
 		}
 		return conn, nil
@@ -149,6 +192,7 @@ func (c *client) getConnection() (*ldap.Conn, error) {
 
 func (c *client) connect(uut string) (*ldap.Conn, error) {
 
+	// TODO these probably should just be parsed once, not on every connection
 	u, err := url.Parse(uut)
 	if err != nil {
 		return nil, err
@@ -262,4 +306,24 @@ func toDNString(baseDN map[Field][]string) string {
 func toFilterString(filters map[Field][]string) string {
 	result := toDNString(filters)
 	return "(" + result + ")"
+}
+
+func isValidInitial(s string) bool {
+	if strings.ToUpper(s) != s {
+		return false
+	}
+	if strings.HasSuffix(s, ".") {
+		return false
+	}
+	return true
+}
+
+func isMixedCase(s string) bool {
+	if strings.ToUpper(s) == s {
+		return false
+	}
+	if strings.ToLower(s) == s {
+		return false
+	}
+	return true
 }

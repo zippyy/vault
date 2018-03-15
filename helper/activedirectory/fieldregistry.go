@@ -3,7 +3,7 @@ package activedirectory
 import "fmt"
 
 const (
-	// TODO how are initials used here?
+
 	// Name fields
 	CommonName     Field = "cn"
 	DisplayName          = "displayName"

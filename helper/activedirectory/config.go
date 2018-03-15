@@ -76,4 +76,6 @@ type Configuration struct {
 	StartTLS      bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
 	TLSMinVersion string `json:"tls_min_version" structs:"tls_min_version" mapstructure:"tls_min_version"`
 	TLSMaxVersion string `json:"tls_max_version" structs:"tls_max_version" mapstructure:"tls_max_version"`
+	Username      string `json:"username" structs:"username" mapstructure:"username"`
+	Password      string `json:"password" structs:"password" mapstructure:"password"`
 }

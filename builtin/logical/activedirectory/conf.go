@@ -3,6 +3,7 @@ package activedirectory
 import (
 	"context"
 	"github.com/fatih/structs"
+
 	"github.com/hashicorp/vault/helper/activedirectory"
 	"github.com/hashicorp/vault/logical"
 	"github.com/hashicorp/vault/logical/framework"
@@ -18,6 +19,7 @@ func (h *configurationRequestHandler) Path() string {
 	return "config"
 }
 
+// TODO this is very oddly designed . . . is there a way to make this less gross?
 func (h *configurationRequestHandler) Handle() *framework.Path {
 	return &framework.Path{
 		Pattern: h.Path(),
