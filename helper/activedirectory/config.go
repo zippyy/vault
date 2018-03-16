@@ -153,7 +153,7 @@ func getTLSMinVersion(fieldData *framework.FieldData) (uint16, error) {
 
 	tlsMinVersion, ok := tlsutil.TLSLookup[confTLSMinVersion]
 	if !ok {
-		return -1, fmt.Errorf("invalid 'tls_min_version' in config")
+		return 0, fmt.Errorf("invalid 'tls_min_version' in config")
 	}
 
 	return tlsMinVersion, nil
@@ -168,7 +168,7 @@ func getTLSMaxVersion(fieldData *framework.FieldData) (uint16, error) {
 
 	tlsMaxVersion, ok := tlsutil.TLSLookup[confTLSMaxVersion]
 	if !ok {
-		return -1, fmt.Errorf("invalid 'tls_max_version' in config")
+		return 0, fmt.Errorf("invalid 'tls_max_version' in config")
 	}
 
 	return tlsMaxVersion, nil
