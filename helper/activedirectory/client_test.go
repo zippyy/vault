@@ -1,21 +1,21 @@
 package activedirectory
 
 import (
-	"testing"
-	"github.com/magiconair/properties/assert"
-	"github.com/hashicorp/vault/helper/ldapifc"
 	"crypto/tls"
-	"github.com/go-ldap/ldap"
 	"fmt"
-	"net/url"
 	"net"
+	"net/url"
+	"os"
+	"testing"
+
+	"github.com/go-ldap/ldap"
+	"github.com/hashicorp/vault/helper/ldapifc"
+	"github.com/magiconair/properties/assert"
 )
 
-const (
-	username = "redacted"
-	password = "redacted"
-	rawURL   = "redacted"
-)
+var username = os.Getenv("TEST_LDAP_USERNAME")
+var password = os.Getenv("TEST_LDAP_PASSWORD")
+var rawURL = os.Getenv("TEST_LDAP_URL")
 
 func getConfig(username string, password string, rawURL string) (*Configuration, error) {
 
@@ -38,17 +38,17 @@ func getConfig(username string, password string, rawURL string) (*Configuration,
 	}
 
 	tlsConfig := &tls.Config{
-		ServerName: host,
-		MinVersion: tlsMinVersion,
-		MaxVersion: tlsMaxVersion,
+		ServerName:         host,
+		MinVersion:         tlsMinVersion,
+		MaxVersion:         tlsMaxVersion,
 		InsecureSkipVerify: true,
 	}
 
 	return &Configuration{
-		StartTLS:      false,
-		Username:      username,
-		Password:      password,
-		TlsConfigs:    map[*url.URL]*tls.Config {
+		StartTLS: false,
+		Username: username,
+		Password: password,
+		TlsConfigs: map[*url.URL]*tls.Config{
 			u: tlsConfig,
 		},
 	}, nil
@@ -73,6 +73,7 @@ func TestSearch(t *testing.T) {
 	}
 
 	entries, err := client.Search(baseDN, filters)
+
 	if err != nil {
 		t.Error(err.Error())
 		t.FailNow()
@@ -167,6 +168,7 @@ func TestSearch(t *testing.T) {
 	result, _ = entry.GetJoined(UserAccountControl)
 	assert.Equal(t, result, "512")
 }
+
 //
 //func TestUpdatePassword(t *testing.T) {
 //
@@ -250,18 +252,16 @@ func (f *fakeLDAPClient) DialTLS(network, addr string, config *tls.Config) (ldap
 }
 
 type fakeLDAPConnection struct {
-
 	usernameToExpect string
 	passwordToExpect string
 
 	modifyRequestToExpect *ldap.ModifyRequest
 
 	searchRequestToExpect *ldap.SearchRequest
-	searchResultToReturn *ldap.SearchResult
+	searchResultToReturn  *ldap.SearchResult
 
 	startTLSConfigToExpect *tls.Config
 }
-
 
 func (f *fakeLDAPConnection) Bind(username, password string) error {
 	if f.usernameToExpect != username {
@@ -284,15 +284,14 @@ func (f *fakeLDAPConnection) Modify(modifyRequest *ldap.ModifyRequest) error {
 
 func (f *fakeLDAPConnection) Search(searchRequest *ldap.SearchRequest) (*ldap.SearchResult, error) {
 	if f.searchRequestToExpect != searchRequest {
-		return nil, fmt.Errorf("expected searchRequest of %s, but received %s", f.searchRequestToExpect, searchRequest)
+		return nil, fmt.Errorf("expected searchRequest of %v, but received %v", f.searchRequestToExpect, searchRequest)
 	}
 	return f.searchResultToReturn, nil
 }
 
 func (f *fakeLDAPConnection) StartTLS(config *tls.Config) error {
 	if f.startTLSConfigToExpect != config {
-		return fmt.Errorf("expected tlsConfig of %s, but received %s", f.startTLSConfigToExpect, config)
+		return fmt.Errorf("expected tlsConfig of %v, but received %v", f.startTLSConfigToExpect, config)
 	}
 	return nil
 }
-

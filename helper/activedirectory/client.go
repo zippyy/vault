@@ -3,15 +3,16 @@ package activedirectory
 import (
 	"crypto/tls"
 	"fmt"
-	"github.com/go-ldap/ldap"
-	"github.com/hashicorp/go-multierror"
-	log "github.com/mgutz/logxi/v1"
-	"golang.org/x/text/encoding/unicode"
 	"net"
 	"net/url"
 	"strings"
-	"github.com/hashicorp/vault/helper/ldapifc"
+
 	"github.com/go-errors/errors"
+	"github.com/go-ldap/ldap"
+	"github.com/hashicorp/go-multierror"
+	"github.com/hashicorp/vault/helper/ldapifc"
+	log "github.com/mgutz/logxi/v1"
+	"golang.org/x/text/encoding/unicode"
 )
 
 func NewClient(conf *Configuration) Client {
@@ -46,7 +47,7 @@ type Client interface {
 }
 
 type client struct {
-	conf *Configuration
+	conf       *Configuration
 	ldapClient ldapifc.Client
 }
 
@@ -97,15 +98,15 @@ func (c *client) UpdateEntry(baseDN map[Field][]string, filters map[Field][]stri
 	}
 
 	modifyReq := &ldap.ModifyRequest{
-		DN: entries[0].DN,
+		DN:                entries[0].DN,
 		ReplaceAttributes: replaceAttributes,
 	}
 
 	conn, err := c.getBoundConnection()
+	defer conn.Close()
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
 
 	return conn.Modify(modifyReq)
 }
@@ -127,7 +128,7 @@ func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]s
 		return err
 	}
 
-	newValues := map[Field][]string {
+	newValues := map[Field][]string{
 		UnicodePassword: {pwdEncoded},
 	}
 
@@ -136,8 +137,8 @@ func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]s
 
 type Username struct {
 	FirstName string // ex. "Becca"
-	Initials string // ex. "A"
-	LastName string // ex. "Petrin"
+	Initials  string // ex. "A"
+	LastName  string // ex. "Petrin"
 }
 
 func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername *Username) error {
@@ -155,10 +156,10 @@ func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]s
 
 	newFullName := fmt.Sprintf("%s %s. %s", newUsername.FirstName, newUsername.Initials, newUsername.LastName)
 
-	newValues := map[Field][]string {
+	newValues := map[Field][]string{
 		//CommonName: {newFullName},
 		DisplayName: {newFullName},
-		GivenName: {newUsername.FirstName},
+		GivenName:   {newUsername.FirstName},
 		//Name: {newFullName},
 		Surname: {newUsername.LastName},
 	}
@@ -167,18 +168,16 @@ func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]s
 }
 
 func (c *client) getBoundConnection() (*ldap.Conn, error) {
-
-	var retErr *multierror.Error
+	retErr := multierror.Append(nil, errors.New("error binding connection"))
 
 	for u, tlsConfig := range c.conf.TlsConfigs {
-
 		conn, err := c.connect(u, tlsConfig)
 		if err != nil {
-			retErr = multierror.Append(retErr, fmt.Errorf("error parsing url %s: %s", u, err.Error()))
+			retErr = multierror.Append(retErr, fmt.Errorf("error parsing url %v: %v", u, err.Error()))
 			continue
 		}
 		if err := conn.Bind(c.conf.Username, c.conf.Password); err != nil {
-			retErr = multierror.Append(retErr, fmt.Errorf("error binding to url %s: %s", u, err.Error()))
+			retErr = multierror.Append(retErr, fmt.Errorf("error binding to url %v: %v", u, err.Error()))
 			continue
 		}
 		return conn, nil
