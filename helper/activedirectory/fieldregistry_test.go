@@ -1,8 +1,8 @@
 package activedirectory
 
 import (
-	"testing"
 	"github.com/magiconair/properties/assert"
+	"testing"
 )
 
 func TestFieldRegistryListsFields(t *testing.T) {

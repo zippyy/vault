@@ -16,8 +16,12 @@ import (
 var (
 	username = os.Getenv("TEST_LDAP_USERNAME")
 	password = os.Getenv("TEST_LDAP_PASSWORD")
-	rawURL = os.Getenv("TEST_LDAP_URL")
+	rawURL   = os.Getenv("TEST_LDAP_URL")
 )
+
+func TestCreateEntry(t *testing.T) {
+	// TODO
+}
 
 func TestSearch(t *testing.T) {
 
@@ -133,10 +137,6 @@ func TestSearch(t *testing.T) {
 	assert.Equal(t, result, "512")
 }
 
-func TestCreateEntry(t *testing.T) {
-	// TODO
-}
-
 func TestUpdateEntry(t *testing.T) {
 	// TODO
 }
@@ -234,7 +234,7 @@ func getConfig(username string, password string, rawURL string) (*Configuration,
 		StartTLS: false,
 		Username: username,
 		Password: password,
-		TlsConfigs: map[*url.URL]*tls.Config{
+		tlsConfigs: map[*url.URL]*tls.Config{
 			u: tlsConfig,
 		},
 	}, nil

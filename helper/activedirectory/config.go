@@ -5,7 +5,6 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
-	"github.com/go-errors/errors"
 	"github.com/hashicorp/vault/helper/tlsutil"
 	"github.com/hashicorp/vault/logical/framework"
 	log "github.com/mgutz/logxi/v1"
@@ -21,69 +20,10 @@ const (
 
 func NewConfiguration(fieldData *framework.FieldData) (*Configuration, error) {
 
-	conf := &Configuration{
-		Username: fieldData.Get("username").(string),
-		Password: fieldData.Get("password").(string),
-		StartTLS: getStartTLS(fieldData),
-	}
-
-	tlsConfigs, err := getTLSConfigs(fieldData)
+	certificate, err := getValidatedCertificate(fieldData)
 	if err != nil {
 		return nil, err
 	}
-	conf.TlsConfigs = tlsConfigs
-
-	if err := conf.validate(); err != nil {
-		return nil, err
-	}
-
-	return conf, nil
-}
-
-type Configuration struct {
-	Username   string `json:"username" structs:"username" mapstructure:"username"`
-	Password   string `json:"password" structs:"password" mapstructure:"password"`
-	StartTLS   bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
-	TlsConfigs map[*url.URL]*tls.Config
-}
-
-func (c *Configuration) validate() error {
-
-	// TODO do we want to require these or not?
-	if c.Username == "" {
-		return errors.New("username must be provided")
-	}
-
-	if c.Password == "" {
-		return errors.New("password must be provided")
-	}
-
-	if len(c.TlsConfigs) <= 0 {
-		return errors.New("unable to parse any of the given urls")
-	}
-
-	return nil
-}
-
-func getStartTLS(fieldData *framework.FieldData) bool {
-
-	startTLSIfc, ok := fieldData.GetOk("starttls")
-	if !ok {
-		return true
-	}
-
-	confStartTLS, ok := startTLSIfc.(bool)
-	if !ok {
-		return true
-	}
-
-	return confStartTLS
-}
-
-func getTLSConfigs(fieldData *framework.FieldData) (map[*url.URL]*tls.Config, error) {
-
-	// intentionally allow this to default to false if not found
-	insecureTLS := fieldData.Get("insecure_tls").(bool)
 
 	tlsMinVersion, err := getTLSMinVersion(fieldData)
 	if err != nil {
@@ -95,16 +35,59 @@ func getTLSConfigs(fieldData *framework.FieldData) (map[*url.URL]*tls.Config, er
 		return nil, err
 	}
 
-	if tlsMinVersion < tlsMaxVersion {
-		return nil, fmt.Errorf("'tls_max_version' must be greater than or equal to 'tls_min_version'")
+	conf := &Configuration{
+		Certificate: certificate,
+		InsecureTLS: fieldData.Get("insecure_tls").(bool),
+		Password: fieldData.Get("password").(string),
+		StartTLS: getStartTLS(fieldData),
+		TLSMinVersion:tlsMinVersion,
+		TLSMaxVersion:tlsMaxVersion,
+		URL: fieldData.Get("url").(string),
+		Username: fieldData.Get("username").(string),
 	}
 
-	certificate, err := getValidatedCertificate(fieldData)
-	if err != nil {
+	if err := conf.validate(); err != nil {
 		return nil, err
 	}
 
-	confUrls := strings.ToLower(fieldData.Get("url").(string))
+	return conf, nil
+}
+
+type Configuration struct {
+	Certificate string `json:"certificate" structs:"certificate" mapstructure:"certificate"`
+	InsecureTLS bool   `json:"insecure_tls" structs:"insecuretls" mapstructure:"insecuretls"`
+	Password    string `json:"password" structs:"password" mapstructure:"password"`
+	StartTLS    bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
+	TLSMinVersion uint16 `json:"tlsminversion" structs:"tlsminversion" mapstructure:"tlsminversion"`
+	TLSMaxVersion uint16 `json:"tlsmaxversion" structs:"tlsmaxversion" mapstructure:"tlsmaxversion"`
+	URL string `json:"url" structs:"url" mapstructure:"certificate"`
+	Username    string `json:"username" structs:"username" mapstructure:"username"`
+
+	// *tlsConfig objects aren't jsonable, so we must avoid storing them and instead generate them on the fly
+	tlsConfigs map[*url.URL]*tls.Config
+}
+
+func (c *Configuration) validate() error {
+	if c.TLSMinVersion < c.TLSMaxVersion {
+		return fmt.Errorf("'tls_max_version' must be greater than or equal to 'tls_min_version'")
+	}
+	return nil
+}
+
+func (c *Configuration) GetTLSConfigs() (map[*url.URL]*tls.Config, error) {
+	if len(c.tlsConfigs) <= 0 {
+		configs, err := c.getTLSConfigs()
+		if err != nil {
+			return nil, err
+		}
+		c.tlsConfigs = configs
+	}
+	return c.tlsConfigs, nil
+}
+
+func (c *Configuration) getTLSConfigs() (map[*url.URL]*tls.Config, error) {
+
+	confUrls := strings.ToLower(c.URL)
 	urls := strings.Split(confUrls, ",")
 
 	tlsConfigs := make(map[*url.URL]*tls.Config)
@@ -125,14 +108,14 @@ func getTLSConfigs(fieldData *framework.FieldData) (map[*url.URL]*tls.Config, er
 
 		tlsConfig := &tls.Config{
 			ServerName:         host,
-			MinVersion:         tlsMinVersion,
-			MaxVersion:         tlsMaxVersion,
-			InsecureSkipVerify: insecureTLS,
+			MinVersion:         c.TLSMinVersion,
+			MaxVersion:         c.TLSMaxVersion,
+			InsecureSkipVerify: c.InsecureTLS,
 		}
 
-		if certificate != "" {
+		if c.Certificate != "" {
 			caPool := x509.NewCertPool()
-			ok := caPool.AppendCertsFromPEM([]byte(certificate))
+			ok := caPool.AppendCertsFromPEM([]byte(c.Certificate))
 			if !ok {
 				// this probably won't succeed on further attempts, so return
 				return nil, fmt.Errorf("could not append CA certificate")
@@ -144,6 +127,42 @@ func getTLSConfigs(fieldData *framework.FieldData) (map[*url.URL]*tls.Config, er
 	}
 
 	return tlsConfigs, nil
+}
+
+func getValidatedCertificate(fieldData *framework.FieldData) (string, error) {
+
+	confCertificate := fieldData.Get("certificate").(string)
+	if confCertificate == "" {
+		// no certificate was provided
+		return "", nil
+	}
+
+	block, _ := pem.Decode([]byte(confCertificate))
+	if block == nil || block.Type != "CERTIFICATE" {
+		return "", fmt.Errorf("failed to decode PEM block in the certificate")
+	}
+
+	_, err := x509.ParseCertificate(block.Bytes)
+	if err != nil {
+		return "", fmt.Errorf("failed to parse certificate %s", err.Error())
+	}
+
+	return confCertificate, nil
+}
+
+func getStartTLS(fieldData *framework.FieldData) bool {
+
+	startTLSIfc, ok := fieldData.GetOk("starttls")
+	if !ok {
+		return true
+	}
+
+	confStartTLS, ok := startTLSIfc.(bool)
+	if !ok {
+		return true
+	}
+
+	return confStartTLS
 }
 
 func getTLSMinVersion(fieldData *framework.FieldData) (uint16, error) {
@@ -174,25 +193,4 @@ func getTLSMaxVersion(fieldData *framework.FieldData) (uint16, error) {
 	}
 
 	return tlsMaxVersion, nil
-}
-
-func getValidatedCertificate(fieldData *framework.FieldData) (string, error) {
-
-	confCertificate := fieldData.Get("certificate").(string)
-	if confCertificate == "" {
-		// no certificate was provided
-		return "", nil
-	}
-
-	block, _ := pem.Decode([]byte(confCertificate))
-	if block == nil || block.Type != "CERTIFICATE" {
-		return "", fmt.Errorf("failed to decode PEM block in the certificate")
-	}
-
-	_, err := x509.ParseCertificate(block.Bytes)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse certificate %s", err.Error())
-	}
-
-	return confCertificate, nil
 }

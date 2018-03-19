@@ -98,22 +98,22 @@ var (
 	}
 
 	logicalBackends = map[string]logical.Factory{
-		"aws":              aws.Factory,
-		"cassandra":        cassandra.Factory,
-		"consul":           consul.Factory,
-		"database":         database.Factory,
-		"active directory": activedirectory.Factory,
-		"mongodb":          mongodb.Factory,
-		"mssql":            mssql.Factory,
-		"mysql":            mysql.Factory,
-		"nomad":            nomad.Factory,
-		"pki":              pki.Factory,
-		"plugin":           plugin.Factory,
-		"postgresql":       postgresql.Factory,
-		"rabbitmq":         rabbitmq.Factory,
-		"ssh":              ssh.Factory,
-		"totp":             totp.Factory,
-		"transit":          transit.Factory,
+		"ad":         activedirectory.Factory,
+		"aws":        aws.Factory,
+		"cassandra":  cassandra.Factory,
+		"consul":     consul.Factory,
+		"database":   database.Factory,
+		"mongodb":    mongodb.Factory,
+		"mssql":      mssql.Factory,
+		"mysql":      mysql.Factory,
+		"nomad":      nomad.Factory,
+		"pki":        pki.Factory,
+		"plugin":     plugin.Factory,
+		"postgresql": postgresql.Factory,
+		"rabbitmq":   rabbitmq.Factory,
+		"ssh":        ssh.Factory,
+		"totp":       totp.Factory,
+		"transit":    transit.Factory,
 	}
 
 	physicalBackends = map[string]physical.Factory{

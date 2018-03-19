@@ -9,8 +9,8 @@ import (
 	"github.com/hashicorp/vault/helper/ldapifc"
 	log "github.com/mgutz/logxi/v1"
 	"golang.org/x/text/encoding/unicode"
-	"net/url"
 	"net"
+	"net/url"
 	"strings"
 )
 
@@ -24,7 +24,6 @@ func NewClientWith(conf *Configuration, ldapClient ldapifc.Client) Client {
 }
 
 type Client interface {
-
 	CreateEntry(baseDNValues []string, entry map[*Field][]string) error
 
 	Search(baseDNValues []string, filters map[*Field][]string) ([]*Entry, error)
@@ -131,7 +130,7 @@ func (c *client) getFirstSucceedingConnection() (*ldap.Conn, error) {
 
 	var retErr *multierror.Error
 
-	for u, tlsConfig := range c.conf.TlsConfigs {
+	for u, tlsConfig := range c.conf.tlsConfigs {
 		conn, err := c.connect(u, tlsConfig)
 		if err != nil {
 			retErr = multierror.Append(retErr, fmt.Errorf("error parsing url %v: %v", u, err.Error()))
