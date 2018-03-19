@@ -130,7 +130,12 @@ func (c *client) getFirstSucceedingConnection() (*ldap.Conn, error) {
 
 	var retErr *multierror.Error
 
-	for u, tlsConfig := range c.conf.tlsConfigs {
+	tlsConfigs, err := c.conf.GetTLSConfigs()
+	if err != nil {
+		return nil, err
+	}
+
+	for u, tlsConfig := range tlsConfigs {
 		conn, err := c.connect(u, tlsConfig)
 		if err != nil {
 			retErr = multierror.Append(retErr, fmt.Errorf("error parsing url %v: %v", u, err.Error()))
