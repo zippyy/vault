@@ -16,7 +16,7 @@ type Client interface {
 	DialTLS(network, addr string, config *tls.Config) (Connection, error)
 }
 
-type client struct {}
+type client struct{}
 
 func (c *client) Dial(network, addr string) (Connection, error) {
 	return ldap.Dial(network, addr)

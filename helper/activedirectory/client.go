@@ -3,47 +3,35 @@ package activedirectory
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
-	"net/url"
-	"strings"
-
 	"github.com/go-errors/errors"
 	"github.com/go-ldap/ldap"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/vault/helper/ldapifc"
 	log "github.com/mgutz/logxi/v1"
 	"golang.org/x/text/encoding/unicode"
+	"net/url"
+	"net"
+	"strings"
 )
 
 func NewClient(conf *Configuration) Client {
 	return &client{conf, ldapifc.NewClient()}
 }
 
-// TODO this is kind of a stupid name
+// TODO this isn't in use yet but will be useful for injecting a mock for testing
 func NewClientWith(conf *Configuration, ldapClient ldapifc.Client) Client {
 	return &client{conf, ldapClient}
 }
 
 type Client interface {
-	Search(baseDN map[Field][]string, filters map[Field][]string) ([]*Entry, error)
-	UpdateEntry(baseDN map[Field][]string, filters map[Field][]string, newValues map[Field][]string) error // TODO add test
 
-	// UpdatePassword sets a new password for one user.
-	UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error
+	CreateEntry(baseDNValues []string, entry map[*Field][]string) error
 
-	// UpdateUsername is a convenience method for updating usernames.
-	// It updates the following fields:
-	//     - CommonName
-	//     - DisplayName
-	//     - GivenName
-	//     - Name
-	//     - Surname
-	// It does not update these fields so emails and SAM automation will be unaffected.
-	//     - userPrincipalName
-	//     - SAMAccountName
-	// If a different set of fields is desired, use UpdateEntry and specify the fields directly instead.
-	// TODO it turns out the userPrincipal name uses everything before @ for the login name, ex. becca@example.com so I log in as becca
-	UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername *Username) error
+	Search(baseDNValues []string, filters map[*Field][]string) ([]*Entry, error)
+
+	UpdateEntry(baseDNValues []string, filters map[*Field][]string, newValues map[*Field][]string) error
+
+	UpdatePassword(baseDNValues []string, filters map[*Field][]string, newPassword string) error
 }
 
 type client struct {
@@ -51,15 +39,20 @@ type client struct {
 	ldapClient ldapifc.Client
 }
 
-func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) ([]*Entry, error) {
+func (c *client) CreateEntry(baseDNValues []string, entry map[*Field][]string) error {
+	// TODO
+	return nil
+}
+
+func (c *client) Search(baseDNValues []string, filters map[*Field][]string) ([]*Entry, error) {
 
 	req := &ldap.SearchRequest{
-		BaseDN: toDNString(baseDN),
-		Scope:  2, // TODO ???
+		BaseDN: toDNString(baseDNValues),
+		Scope:  ldap.ScopeWholeSubtree,
 		Filter: toFilterString(filters),
 	}
 
-	conn, err := c.getBoundConnection()
+	conn, err := c.getFirstSucceedingConnection()
 	if err != nil {
 		return nil, err
 	}
@@ -77,9 +70,9 @@ func (c *client) Search(baseDN map[Field][]string, filters map[Field][]string) (
 	return entries, nil
 }
 
-func (c *client) UpdateEntry(baseDN map[Field][]string, filters map[Field][]string, newValues map[Field][]string) error {
+func (c *client) UpdateEntry(baseDNValues []string, filters map[*Field][]string, newValues map[*Field][]string) error {
 
-	entries, err := c.Search(baseDN, filters)
+	entries, err := c.Search(baseDNValues, filters)
 	if err != nil {
 		return err
 	}
@@ -89,10 +82,10 @@ func (c *client) UpdateEntry(baseDN map[Field][]string, filters map[Field][]stri
 
 	replaceAttributes := make([]ldap.PartialAttribute, len(newValues))
 	i := 0
-	for k, v := range newValues {
+	for field, vals := range newValues {
 		replaceAttributes[i] = ldap.PartialAttribute{
-			Type: fmt.Sprintf("%s", k),
-			Vals: v,
+			Type: field.String(),
+			Vals: vals,
 		}
 		i++
 	}
@@ -102,8 +95,7 @@ func (c *client) UpdateEntry(baseDN map[Field][]string, filters map[Field][]stri
 		ReplaceAttributes: replaceAttributes,
 	}
 
-	conn, err := c.getBoundConnection()
-	defer conn.Close()
+	conn, err := c.getFirstSucceedingConnection()
 	if err != nil {
 		return err
 	}
@@ -111,10 +103,10 @@ func (c *client) UpdateEntry(baseDN map[Field][]string, filters map[Field][]stri
 	return conn.Modify(modifyReq)
 }
 
-func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]string, newPassword string) error {
+func (c *client) UpdatePassword(baseDNValues []string, filters map[*Field][]string, newPassword string) error {
 
 	if !c.conf.StartTLS {
-		return errors.New("per Active Directory, a TLS session must be in progress to update passswords, please update your StartTLS setting")
+		return errors.New("per Active Directory, a TLS session must be in progress to update passwords, please update your StartTLS setting")
 	}
 
 	// Active Directory doesn't recognize the passwordModify method.
@@ -128,47 +120,16 @@ func (c *client) UpdatePassword(baseDN map[Field][]string, filters map[Field][]s
 		return err
 	}
 
-	newValues := map[Field][]string{
-		UnicodePassword: {pwdEncoded},
+	newValues := map[*Field][]string{
+		FieldRegistry.UnicodePassword: {pwdEncoded},
 	}
 
-	return c.UpdateEntry(baseDN, filters, newValues)
+	return c.UpdateEntry(baseDNValues, filters, newValues)
 }
 
-type Username struct {
-	FirstName string // ex. "Becca"
-	Initials  string // ex. "A"
-	LastName  string // ex. "Petrin"
-}
+func (c *client) getFirstSucceedingConnection() (*ldap.Conn, error) {
 
-func (c *client) UpdateUsername(baseDN map[Field][]string, filters map[Field][]string, newUsername *Username) error {
-
-	// Validate that we received an expected username so we can do gymnastics to format various fields.
-	if !isMixedCase(newUsername.FirstName) {
-		return fmt.Errorf("expected first name %s to be mixed case, ex. 'Tien'", newUsername.FirstName)
-	}
-	if !isValidInitial(newUsername.Initials) {
-		return fmt.Errorf("expected initial %s to be capitalized and without a period, ex. 'W'", newUsername.Initials)
-	}
-	if !isMixedCase(newUsername.LastName) {
-		return fmt.Errorf("expected last name %s to be mixed case, ex. 'Nguyen'", newUsername.LastName)
-	}
-
-	newFullName := fmt.Sprintf("%s %s. %s", newUsername.FirstName, newUsername.Initials, newUsername.LastName)
-
-	newValues := map[Field][]string{
-		//CommonName: {newFullName},
-		DisplayName: {newFullName},
-		GivenName:   {newUsername.FirstName},
-		//Name: {newFullName},
-		Surname: {newUsername.LastName},
-	}
-
-	return c.UpdateEntry(baseDN, filters, newValues)
-}
-
-func (c *client) getBoundConnection() (*ldap.Conn, error) {
-	retErr := multierror.Append(nil, errors.New("error binding connection"))
+	var retErr *multierror.Error
 
 	for u, tlsConfig := range c.conf.TlsConfigs {
 		conn, err := c.connect(u, tlsConfig)
@@ -176,24 +137,27 @@ func (c *client) getBoundConnection() (*ldap.Conn, error) {
 			retErr = multierror.Append(retErr, fmt.Errorf("error parsing url %v: %v", u, err.Error()))
 			continue
 		}
-		if err := conn.Bind(c.conf.Username, c.conf.Password); err != nil {
-			retErr = multierror.Append(retErr, fmt.Errorf("error binding to url %v: %v", u, err.Error()))
-			continue
+
+		if c.conf.Username != "" && c.conf.Password != "" {
+			if err := conn.Bind(c.conf.Username, c.conf.Password); err != nil {
+				retErr = multierror.Append(retErr, fmt.Errorf("error binding to url %s: %s", u, err.Error()))
+				continue
+			}
 		}
+
 		return conn, nil
 	}
 
+	// TODO do I need to check if log IsDebug first, or will the logger handle only printing it if the level is appropriate?
 	log.Debug("ldap: errors connecting to some hosts: %s", retErr.Error())
 	return nil, retErr
 }
 
 func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (*ldap.Conn, error) {
 
-	host, port, err := net.SplitHostPort(u.Host)
+	_, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
-		// err intentionally ignored
-		// fall back to using the parsed url's host
-		host = u.Host
+		// err intentionally ignored - we'll fall back to default ldap ports if we're unable to parse this
 	}
 
 	switch u.Scheme {
@@ -204,7 +168,7 @@ func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (*ldap.Conn, error) 
 			port = "389"
 		}
 
-		conn, err := ldap.Dial("tcp", net.JoinHostPort(host, port))
+		conn, err := ldap.Dial("tcp", net.JoinHostPort(tlsConfig.ServerName, port))
 		if err != nil {
 			return nil, err
 		}
@@ -222,50 +186,37 @@ func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (*ldap.Conn, error) 
 			port = "636"
 		}
 
-		conn, err := ldap.DialTLS("tcp", net.JoinHostPort(host, port), tlsConfig)
+		conn, err := ldap.DialTLS("tcp", net.JoinHostPort(tlsConfig.ServerName, port), tlsConfig)
 		if err != nil {
 			return nil, err
 		}
 		return conn, nil
 
 	default:
-		return nil, fmt.Errorf("invalid LDAP scheme in url %q", net.JoinHostPort(host, port))
+		return nil, fmt.Errorf("invalid LDAP scheme in url %q", net.JoinHostPort(tlsConfig.ServerName, port))
 	}
+}
+
+func toDNString(dnValues []string) string {
+	m := map[*Field][]string{
+		FieldRegistry.DomainComponent: dnValues,
+	}
+	return toJoinedFieldEqualsString(m)
 }
 
 // Ex. "dc=example,dc=com"
-func toDNString(baseDN map[Field][]string) string {
-	var fieldValues []string
-	for f, values := range baseDN {
+func toJoinedFieldEqualsString(fieldValues map[*Field][]string) string {
+	var fieldEquals []string
+	for f, values := range fieldValues {
 		for _, v := range values {
-			fieldValues = append(fieldValues, fmt.Sprintf("%s=%s", f, v))
+			fieldEquals = append(fieldEquals, fmt.Sprintf("%s=%s", f, v))
 		}
 	}
-	return strings.Join(fieldValues, ",")
+	return strings.Join(fieldEquals, ",")
 }
 
 // Ex. "(cn=Ellen Jones)"
-func toFilterString(filters map[Field][]string) string {
-	result := toDNString(filters)
+func toFilterString(filters map[*Field][]string) string {
+	result := toJoinedFieldEqualsString(filters)
 	return "(" + result + ")"
-}
-
-func isValidInitial(s string) bool {
-	if strings.ToUpper(s) != s {
-		return false
-	}
-	if strings.HasSuffix(s, ".") {
-		return false
-	}
-	return true
-}
-
-func isMixedCase(s string) bool {
-	if strings.ToUpper(s) == s {
-		return false
-	}
-	if strings.ToLower(s) == s {
-		return false
-	}
-	return true
 }

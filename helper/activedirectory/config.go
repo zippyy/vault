@@ -1,17 +1,17 @@
 package activedirectory
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
 	"fmt"
+	"github.com/go-errors/errors"
 	"github.com/hashicorp/vault/helper/tlsutil"
 	"github.com/hashicorp/vault/logical/framework"
-	"strings"
-	"net/url"
-	"crypto/tls"
-	"net"
-	"github.com/go-errors/errors"
 	log "github.com/mgutz/logxi/v1"
+	"net"
+	"net/url"
+	"strings"
 )
 
 const (
@@ -41,14 +41,15 @@ func NewConfiguration(fieldData *framework.FieldData) (*Configuration, error) {
 }
 
 type Configuration struct {
-	Username      string `json:"username" structs:"username" mapstructure:"username"`
-	Password      string `json:"password" structs:"password" mapstructure:"password"`
-	StartTLS      bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
-	TlsConfigs    map[*url.URL]*tls.Config
+	Username   string `json:"username" structs:"username" mapstructure:"username"`
+	Password   string `json:"password" structs:"password" mapstructure:"password"`
+	StartTLS   bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
+	TlsConfigs map[*url.URL]*tls.Config
 }
 
 func (c *Configuration) validate() error {
 
+	// TODO do we want to require these or not?
 	if c.Username == "" {
 		return errors.New("username must be provided")
 	}
@@ -81,6 +82,7 @@ func getStartTLS(fieldData *framework.FieldData) bool {
 
 func getTLSConfigs(fieldData *framework.FieldData) (map[*url.URL]*tls.Config, error) {
 
+	// intentionally allow this to default to false if not found
 	insecureTLS := fieldData.Get("insecure_tls").(bool)
 
 	tlsMinVersion, err := getTLSMinVersion(fieldData)
@@ -122,9 +124,9 @@ func getTLSConfigs(fieldData *framework.FieldData) (map[*url.URL]*tls.Config, er
 		}
 
 		tlsConfig := &tls.Config{
-			ServerName: host,
-			MinVersion: tlsMinVersion,
-			MaxVersion: tlsMaxVersion,
+			ServerName:         host,
+			MinVersion:         tlsMinVersion,
+			MaxVersion:         tlsMaxVersion,
 			InsecureSkipVerify: insecureTLS,
 		}
 

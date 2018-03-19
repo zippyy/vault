@@ -13,46 +13,11 @@ import (
 	"github.com/magiconair/properties/assert"
 )
 
-var username = os.Getenv("TEST_LDAP_USERNAME")
-var password = os.Getenv("TEST_LDAP_PASSWORD")
-var rawURL = os.Getenv("TEST_LDAP_URL")
-
-func getConfig(username string, password string, rawURL string) (*Configuration, error) {
-
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, err
-	}
-
-	var tlsMinVersion uint16
-	var tlsMaxVersion uint16
-
-	tlsMinVersion = 771
-	tlsMaxVersion = 771
-
-	host, _, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		// err intentionally ignored
-		// fall back to using the parsed url's host
-		host = u.Host
-	}
-
-	tlsConfig := &tls.Config{
-		ServerName:         host,
-		MinVersion:         tlsMinVersion,
-		MaxVersion:         tlsMaxVersion,
-		InsecureSkipVerify: true,
-	}
-
-	return &Configuration{
-		StartTLS: false,
-		Username: username,
-		Password: password,
-		TlsConfigs: map[*url.URL]*tls.Config{
-			u: tlsConfig,
-		},
-	}, nil
-}
+var (
+	username = os.Getenv("TEST_LDAP_USERNAME")
+	password = os.Getenv("TEST_LDAP_PASSWORD")
+	rawURL = os.Getenv("TEST_LDAP_URL")
+)
 
 func TestSearch(t *testing.T) {
 
@@ -64,181 +29,123 @@ func TestSearch(t *testing.T) {
 
 	client := NewClient(config)
 
-	baseDN := map[Field][]string{
-		DomainComponent: {"example", "com"},
-	}
+	baseDN := []string{"example", "com"}
 
-	filters := map[Field][]string{
-		Surname: {"Kalafut"},
+	filters := map[*Field][]string{
+		FieldRegistry.Surname: {"Kalafut"},
 	}
 
 	entries, err := client.Search(baseDN, filters)
 
 	if err != nil {
-		t.Error(err.Error())
+		fmt.Println(err.Error())
 		t.FailNow()
 	}
+
 	if len(entries) != 1 {
 		t.Errorf("expected 1 entry but received %d: %s", len(entries), entries)
 		t.FailNow()
 	}
 	entry := entries[0]
 
-	result, _ := entry.GetJoined(SAMAccountName)
+	result, _ := entry.GetJoined(FieldRegistry.SAMAccountName)
 	assert.Equal(t, result, "jim")
 
-	result, _ = entry.GetJoined(CommonName)
+	result, _ = entry.GetJoined(FieldRegistry.CommonName)
 	assert.Equal(t, result, "Jim H.. Kalafut")
 
-	result, _ = entry.GetJoined(GivenName)
+	result, _ = entry.GetJoined(FieldRegistry.GivenName)
 	assert.Equal(t, result, "Jim")
 
-	result, _ = entry.GetJoined(DisplayName)
+	result, _ = entry.GetJoined(FieldRegistry.DisplayName)
 	assert.Equal(t, result, "Jim H.. Kalafut")
 
-	result, _ = entry.GetJoined(BadPasswordTime)
+	result, _ = entry.GetJoined(FieldRegistry.BadPasswordTime)
 	assert.Equal(t, result, "131653637947737037")
 
-	result, _ = entry.GetJoined(PasswordLastSet)
+	result, _ = entry.GetJoined(FieldRegistry.PasswordLastSet)
 	assert.Equal(t, result, "0")
 
-	result, _ = entry.GetJoined(PrimaryGroupID)
+	result, _ = entry.GetJoined(FieldRegistry.PrimaryGroupID)
 	assert.Equal(t, result, "513")
 
-	result, _ = entry.GetJoined(AccountExpires)
+	result, _ = entry.GetJoined(FieldRegistry.AccountExpires)
 	assert.Equal(t, result, "9223372036854775807")
 
-	result, _ = entry.GetJoined(WhenCreated)
+	result, _ = entry.GetJoined(FieldRegistry.WhenCreated)
 	assert.Equal(t, result, "20180312181537.0Z")
 
-	result, _ = entry.GetJoined(UpdateSequenceNumberCreated)
+	result, _ = entry.GetJoined(FieldRegistry.UpdateSequenceNumberCreated)
 	assert.Equal(t, result, "20565")
 
-	result, _ = entry.GetJoined(UpdateSequenceNumberChanged)
+	result, _ = entry.GetJoined(FieldRegistry.UpdateSequenceNumberChanged)
 	assert.Equal(t, result, "20571")
 
-	result, _ = entry.GetJoined(BadPasswordCount)
+	result, _ = entry.GetJoined(FieldRegistry.BadPasswordCount)
 	assert.Equal(t, result, "1")
 
-	result, _ = entry.GetJoined(UserPrincipalName)
+	result, _ = entry.GetJoined(FieldRegistry.UserPrincipalName)
 	assert.Equal(t, result, "jim@example.com")
 
-	result, _ = entry.GetJoined(ObjectCategory)
+	result, _ = entry.GetJoined(FieldRegistry.ObjectCategory)
 	assert.Equal(t, result, "CN=Person,CN=Schema,CN=Configuration,DC=example,DC=com")
 
-	result, _ = entry.GetJoined(DSCorePropogationData)
+	result, _ = entry.GetJoined(FieldRegistry.DSCorePropogationData)
 	assert.Equal(t, result, "16010101000000.0Z")
 
-	result, _ = entry.GetJoined(LastLogoff)
+	result, _ = entry.GetJoined(FieldRegistry.LastLogoff)
 	assert.Equal(t, result, "0")
 
-	result, _ = entry.GetJoined(LastLogon)
+	result, _ = entry.GetJoined(FieldRegistry.LastLogon)
 	assert.Equal(t, result, "0")
 
-	result, _ = entry.GetJoined(SAMAccountType)
+	result, _ = entry.GetJoined(FieldRegistry.SAMAccountType)
 	assert.Equal(t, result, "805306368")
 
-	result, _ = entry.GetJoined(CountryCode)
+	result, _ = entry.GetJoined(FieldRegistry.CountryCode)
 	assert.Equal(t, result, "0")
 
-	result, _ = entry.GetJoined(Surname)
+	result, _ = entry.GetJoined(FieldRegistry.Surname)
 	assert.Equal(t, result, "Kalafut")
 
-	result, _ = entry.GetJoined(DistinguishedName)
+	result, _ = entry.GetJoined(FieldRegistry.DistinguishedName)
 	assert.Equal(t, result, "CN=Jim H.. Kalafut,OU=Vault,OU=Engineering,DC=example,DC=com")
 
-	result, _ = entry.GetJoined(ObjectClass)
+	result, _ = entry.GetJoined(FieldRegistry.ObjectClass)
 	assert.Equal(t, result, "top,person,organizationalPerson,user")
 
-	result, _ = entry.GetJoined(InstanceType)
+	result, _ = entry.GetJoined(FieldRegistry.InstanceType)
 	assert.Equal(t, result, "4")
 
-	result, _ = entry.GetJoined(WhenChanged)
+	result, _ = entry.GetJoined(FieldRegistry.WhenChanged)
 	assert.Equal(t, result, "20180312181537.0Z")
 
-	result, _ = entry.GetJoined(CodePage)
+	result, _ = entry.GetJoined(FieldRegistry.CodePage)
 	assert.Equal(t, result, "0")
 
-	result, _ = entry.GetJoined(LogonCount)
+	result, _ = entry.GetJoined(FieldRegistry.LogonCount)
 	assert.Equal(t, result, "0")
 
-	result, _ = entry.GetJoined(Name)
+	result, _ = entry.GetJoined(FieldRegistry.Name)
 	assert.Equal(t, result, "Jim H.. Kalafut")
 
-	result, _ = entry.GetJoined(UserAccountControl)
+	result, _ = entry.GetJoined(FieldRegistry.UserAccountControl)
 	assert.Equal(t, result, "512")
 }
 
-//
-//func TestUpdatePassword(t *testing.T) {
-//
-//	customConfig := completeConfig
-//	customConfig.StartTLS = true
-//
-//	client := NewClient(customConfig)
-//
-//	baseDN := map[Field][]string{
-//		DomainComponent: {"example", "com"},
-//	}
-//
-//	filters := map[Field][]string{
-//		Surname: {"Test"},
-//	}
-//
-//	if err := client.UpdatePassword(baseDN, filters, "7Zoinks?"); err != nil {
-//		t.Errorf("error updating password: %s", err.Error())
-//		t.FailNow()
-//	}
-//}
-//
-//func TestUpdatePasswordFailsHelpfullyWithNoTLSSession(t *testing.T) {
-//
-//	client := NewClient(completeConfig)
-//
-//	baseDN := map[Field][]string{
-//		DomainComponent: {"example", "com"},
-//	}
-//
-//	filters := map[Field][]string{
-//		Surname: {"Test"},
-//	}
-//
-//	if err := client.UpdatePassword(baseDN, filters, "redacted"); err != nil {
-//		assert.Equal(t, err.Error(), "per Active Directory, a TLS session must be in progress to update passswords, please update your StartTLS setting")
-//		return
-//	}
-//	t.Error("should have errored because MS won't update passwords without a TLS session")
-//	t.FailNow()
-//}
-//
-//// TODO MS is odd about which fields on a name you can directly update,
-//// and so far I haven't found it documented.
-//// Need more definition on what they mean by updating the "username"
-//// before I can properly define the behavior of this method.
-//func TestUpdateUsername(t *testing.T) {
-//
-//	client := NewClient(completeConfig)
-//
-//	baseDN := map[Field][]string{
-//		DomainComponent: {"example", "com"},
-//	}
-//
-//	filters := map[Field][]string{
-//		Surname: {"Test"},
-//	}
-//
-//	newName := &Username{
-//		FirstName: "Pwd",
-//		Initials: "G",
-//		LastName: "Tester",
-//	}
-//
-//	if err := client.UpdateUsername(baseDN, filters, newName); err != nil {
-//		t.Errorf("failed to update username: %s", err.Error())
-//		t.FailNow()
-//	}
-//}
+func TestCreateEntry(t *testing.T) {
+	// TODO
+}
 
+func TestUpdateEntry(t *testing.T) {
+	// TODO
+}
+
+func TestUpdatePassword(t *testing.T) {
+	// TODO
+}
+
+// TODO the below isn't in use yet but will be used as a mock in final tests
 type fakeLDAPClient struct {
 	connToReturn ldapifc.Connection
 }
@@ -294,4 +201,41 @@ func (f *fakeLDAPConnection) StartTLS(config *tls.Config) error {
 		return fmt.Errorf("expected tlsConfig of %v, but received %v", f.startTLSConfigToExpect, config)
 	}
 	return nil
+}
+
+func getConfig(username string, password string, rawURL string) (*Configuration, error) {
+
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return nil, err
+	}
+
+	var tlsMinVersion uint16
+	var tlsMaxVersion uint16
+
+	tlsMinVersion = 771
+	tlsMaxVersion = 771
+
+	host, _, err := net.SplitHostPort(u.Host)
+	if err != nil {
+		// err intentionally ignored
+		// fall back to using the parsed url's host
+		host = u.Host
+	}
+
+	tlsConfig := &tls.Config{
+		ServerName:         host,
+		MinVersion:         tlsMinVersion,
+		MaxVersion:         tlsMaxVersion,
+		InsecureSkipVerify: true,
+	}
+
+	return &Configuration{
+		StartTLS: false,
+		Username: username,
+		Password: password,
+		TlsConfigs: map[*url.URL]*tls.Config{
+			u: tlsConfig,
+		},
+	}, nil
 }

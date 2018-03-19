@@ -1,8 +1,8 @@
 package ldapifc
 
 import (
-	"github.com/go-ldap/ldap"
 	"crypto/tls"
+	"github.com/go-ldap/ldap"
 )
 
 // Connection provides the functionality of an LDAP connection,
