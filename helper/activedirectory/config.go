@@ -36,14 +36,14 @@ func NewConfiguration(fieldData *framework.FieldData) (*Configuration, error) {
 	}
 
 	conf := &Configuration{
-		Certificate: certificate,
-		InsecureTLS: fieldData.Get("insecure_tls").(bool),
-		Password: fieldData.Get("password").(string),
-		StartTLS: getStartTLS(fieldData),
-		TLSMinVersion:tlsMinVersion,
-		TLSMaxVersion:tlsMaxVersion,
-		URL: fieldData.Get("url").(string),
-		Username: fieldData.Get("username").(string),
+		Certificate:   certificate,
+		InsecureTLS:   fieldData.Get("insecure_tls").(bool),
+		Password:      fieldData.Get("password").(string),
+		StartTLS:      getStartTLS(fieldData),
+		TLSMinVersion: tlsMinVersion,
+		TLSMaxVersion: tlsMaxVersion,
+		URL:           fieldData.Get("url").(string),
+		Username:      fieldData.Get("username").(string),
 	}
 
 	if err := conf.validate(); err != nil {
@@ -54,14 +54,14 @@ func NewConfiguration(fieldData *framework.FieldData) (*Configuration, error) {
 }
 
 type Configuration struct {
-	Certificate string `json:"certificate" structs:"certificate" mapstructure:"certificate"`
-	InsecureTLS bool   `json:"insecure_tls" structs:"insecuretls" mapstructure:"insecuretls"`
-	Password    string `json:"password" structs:"password" mapstructure:"password"`
-	StartTLS    bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
+	Certificate   string `json:"certificate" structs:"certificate" mapstructure:"certificate"`
+	InsecureTLS   bool   `json:"insecure_tls" structs:"insecuretls" mapstructure:"insecuretls"`
+	Password      string `json:"password" structs:"password" mapstructure:"password"`
+	StartTLS      bool   `json:"starttls" structs:"starttls" mapstructure:"starttls"`
 	TLSMinVersion uint16 `json:"tlsminversion" structs:"tlsminversion" mapstructure:"tlsminversion"`
 	TLSMaxVersion uint16 `json:"tlsmaxversion" structs:"tlsmaxversion" mapstructure:"tlsmaxversion"`
-	URL string `json:"url" structs:"url" mapstructure:"certificate"`
-	Username    string `json:"username" structs:"username" mapstructure:"username"`
+	URL           string `json:"url" structs:"url" mapstructure:"certificate"`
+	Username      string `json:"username" structs:"username" mapstructure:"username"`
 
 	// *tlsConfig objects aren't jsonable, so we must avoid storing them and instead generate them on the fly
 	tlsConfigs map[*url.URL]*tls.Config

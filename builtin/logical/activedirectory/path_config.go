@@ -19,13 +19,11 @@ func pathConfig() *framework.Path {
 				Description: "Username with sufficient permissions in Active Directory to administer passwords.",
 			},
 
-
 			"password": {
 				Type:        framework.TypeString,
 				Default:     "",
 				Description: "Password for username with sufficient permissions in Active Directory to administer passwords.",
 			},
-
 
 			"url": {
 				Type:        framework.TypeString,
@@ -41,13 +39,13 @@ func pathConfig() *framework.Path {
 
 			"insecure_tls": {
 				Type:        framework.TypeBool,
-				Default: false,
+				Default:     false,
 				Description: "Skip LDAP server SSL Certificate verification - VERY insecure (optional)",
 			},
 
 			"starttls": {
 				Type:        framework.TypeBool,
-				Default: true,
+				Default:     true,
 				Description: "Issue a StartTLS command after establishing unencrypted connection (optional)",
 			},
 
