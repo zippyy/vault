@@ -3,29 +3,27 @@ package activedirectory
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
+	"net/url"
+	"strings"
+
 	"github.com/go-errors/errors"
 	"github.com/go-ldap/ldap"
 	"github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/vault/helper/ldapifc"
 	log "github.com/mgutz/logxi/v1"
 	"golang.org/x/text/encoding/unicode"
-	"net"
-	"net/url"
-	"strings"
 )
 
 func NewClient(conf *Configuration) Client {
 	return &client{conf, ldapifc.NewClient()}
 }
 
-// TODO this isn't in use yet but will be useful for injecting a mock for testing
 func NewClientWith(conf *Configuration, ldapClient ldapifc.Client) Client {
 	return &client{conf, ldapClient}
 }
 
 type Client interface {
-	CreateEntry(baseDNValues []string, entry map[*Field][]string) error
-
 	Search(baseDNValues []string, filters map[*Field][]string) ([]*Entry, error)
 
 	UpdateEntry(baseDNValues []string, filters map[*Field][]string, newValues map[*Field][]string) error
@@ -36,11 +34,6 @@ type Client interface {
 type client struct {
 	conf       *Configuration
 	ldapClient ldapifc.Client
-}
-
-func (c *client) CreateEntry(baseDNValues []string, entry map[*Field][]string) error {
-	// TODO
-	return nil
 }
 
 func (c *client) Search(baseDNValues []string, filters map[*Field][]string) ([]*Entry, error) {
@@ -126,7 +119,7 @@ func (c *client) UpdatePassword(baseDNValues []string, filters map[*Field][]stri
 	return c.UpdateEntry(baseDNValues, filters, newValues)
 }
 
-func (c *client) getFirstSucceedingConnection() (*ldap.Conn, error) {
+func (c *client) getFirstSucceedingConnection() (ldapifc.Connection, error) {
 
 	var retErr *multierror.Error
 
@@ -152,12 +145,11 @@ func (c *client) getFirstSucceedingConnection() (*ldap.Conn, error) {
 		return conn, nil
 	}
 
-	// TODO do I need to check if log IsDebug first, or will the logger handle only printing it if the level is appropriate?
 	log.Debug("ldap: errors connecting to some hosts: %s", retErr.Error())
 	return nil, retErr
 }
 
-func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (*ldap.Conn, error) {
+func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (ldapifc.Connection, error) {
 
 	_, port, err := net.SplitHostPort(u.Host)
 	if err != nil {
@@ -172,7 +164,7 @@ func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (*ldap.Conn, error) 
 			port = "389"
 		}
 
-		conn, err := ldap.Dial("tcp", net.JoinHostPort(tlsConfig.ServerName, port))
+		conn, err := c.ldapClient.Dial("tcp", net.JoinHostPort(tlsConfig.ServerName, port))
 		if err != nil {
 			return nil, err
 		}
@@ -190,7 +182,7 @@ func (c *client) connect(u *url.URL, tlsConfig *tls.Config) (*ldap.Conn, error) 
 			port = "636"
 		}
 
-		conn, err := ldap.DialTLS("tcp", net.JoinHostPort(tlsConfig.ServerName, port), tlsConfig)
+		conn, err := c.ldapClient.DialTLS("tcp", net.JoinHostPort(tlsConfig.ServerName, port), tlsConfig)
 		if err != nil {
 			return nil, err
 		}

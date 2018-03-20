@@ -3,9 +3,6 @@ package activedirectory
 import (
 	"crypto/tls"
 	"fmt"
-	"net"
-	"net/url"
-	"os"
 	"testing"
 
 	"github.com/go-ldap/ldap"
@@ -13,34 +10,26 @@ import (
 	"github.com/magiconair/properties/assert"
 )
 
-var (
-	username = os.Getenv("TEST_LDAP_USERNAME")
-	password = os.Getenv("TEST_LDAP_PASSWORD")
-	rawURL   = os.Getenv("TEST_LDAP_URL")
-)
-
-func TestCreateEntry(t *testing.T) {
-	// TODO
-}
-
 func TestSearch(t *testing.T) {
 
-	config, err := getConfig(username, password, rawURL)
-	if err != nil {
-		fmt.Println(err.Error())
-		t.FailNow()
+	config := emptyConfig()
+
+	conn := &fakeLDAPConnection{
+		searchRequestToExpect: testSearchRequest(),
+		searchResultToReturn:  testSearchResult(),
 	}
 
-	client := NewClient(config)
+	ldapClient := &fakeLDAPClient{conn}
+
+	client := NewClientWith(config, ldapClient)
 
 	baseDN := []string{"example", "com"}
 
 	filters := map[*Field][]string{
-		FieldRegistry.Surname: {"Kalafut"},
+		FieldRegistry.Surname: {"Jones"},
 	}
 
 	entries, err := client.Search(baseDN, filters)
-
 	if err != nil {
 		fmt.Println(err.Error())
 		t.FailNow()
@@ -52,17 +41,8 @@ func TestSearch(t *testing.T) {
 	}
 	entry := entries[0]
 
-	result, _ := entry.GetJoined(FieldRegistry.SAMAccountName)
-	assert.Equal(t, result, "jim")
-
-	result, _ = entry.GetJoined(FieldRegistry.CommonName)
-	assert.Equal(t, result, "Jim H.. Kalafut")
-
-	result, _ = entry.GetJoined(FieldRegistry.GivenName)
-	assert.Equal(t, result, "Jim")
-
-	result, _ = entry.GetJoined(FieldRegistry.DisplayName)
-	assert.Equal(t, result, "Jim H.. Kalafut")
+	result, _ := entry.GetJoined(FieldRegistry.Surname)
+	assert.Equal(t, result, "Jones")
 
 	result, _ = entry.GetJoined(FieldRegistry.BadPasswordTime)
 	assert.Equal(t, result, "131653637947737037")
@@ -73,79 +53,87 @@ func TestSearch(t *testing.T) {
 	result, _ = entry.GetJoined(FieldRegistry.PrimaryGroupID)
 	assert.Equal(t, result, "513")
 
-	result, _ = entry.GetJoined(FieldRegistry.AccountExpires)
-	assert.Equal(t, result, "9223372036854775807")
-
-	result, _ = entry.GetJoined(FieldRegistry.WhenCreated)
-	assert.Equal(t, result, "20180312181537.0Z")
-
-	result, _ = entry.GetJoined(FieldRegistry.UpdateSequenceNumberCreated)
-	assert.Equal(t, result, "20565")
-
-	result, _ = entry.GetJoined(FieldRegistry.UpdateSequenceNumberChanged)
-	assert.Equal(t, result, "20571")
-
-	result, _ = entry.GetJoined(FieldRegistry.BadPasswordCount)
-	assert.Equal(t, result, "1")
-
 	result, _ = entry.GetJoined(FieldRegistry.UserPrincipalName)
 	assert.Equal(t, result, "jim@example.com")
 
-	result, _ = entry.GetJoined(FieldRegistry.ObjectCategory)
-	assert.Equal(t, result, "CN=Person,CN=Schema,CN=Configuration,DC=example,DC=com")
-
-	result, _ = entry.GetJoined(FieldRegistry.DSCorePropogationData)
-	assert.Equal(t, result, "16010101000000.0Z")
-
-	result, _ = entry.GetJoined(FieldRegistry.LastLogoff)
-	assert.Equal(t, result, "0")
-
-	result, _ = entry.GetJoined(FieldRegistry.LastLogon)
-	assert.Equal(t, result, "0")
-
-	result, _ = entry.GetJoined(FieldRegistry.SAMAccountType)
-	assert.Equal(t, result, "805306368")
-
-	result, _ = entry.GetJoined(FieldRegistry.CountryCode)
-	assert.Equal(t, result, "0")
-
-	result, _ = entry.GetJoined(FieldRegistry.Surname)
-	assert.Equal(t, result, "Kalafut")
-
-	result, _ = entry.GetJoined(FieldRegistry.DistinguishedName)
-	assert.Equal(t, result, "CN=Jim H.. Kalafut,OU=Vault,OU=Engineering,DC=example,DC=com")
-
 	result, _ = entry.GetJoined(FieldRegistry.ObjectClass)
 	assert.Equal(t, result, "top,person,organizationalPerson,user")
-
-	result, _ = entry.GetJoined(FieldRegistry.InstanceType)
-	assert.Equal(t, result, "4")
-
-	result, _ = entry.GetJoined(FieldRegistry.WhenChanged)
-	assert.Equal(t, result, "20180312181537.0Z")
-
-	result, _ = entry.GetJoined(FieldRegistry.CodePage)
-	assert.Equal(t, result, "0")
-
-	result, _ = entry.GetJoined(FieldRegistry.LogonCount)
-	assert.Equal(t, result, "0")
-
-	result, _ = entry.GetJoined(FieldRegistry.Name)
-	assert.Equal(t, result, "Jim H.. Kalafut")
-
-	result, _ = entry.GetJoined(FieldRegistry.UserAccountControl)
-	assert.Equal(t, result, "512")
 }
 
 func TestUpdateEntry(t *testing.T) {
-	// TODO
+
+	config := emptyConfig()
+
+	conn := &fakeLDAPConnection{
+		searchRequestToExpect: testSearchRequest(),
+		searchResultToReturn:  testSearchResult(),
+	}
+
+	conn.modifyRequestToExpect = &ldap.ModifyRequest{
+		DN: "CN=Jim H.. Jones,OU=Vault,OU=Engineering,DC=example,DC=com",
+		ReplaceAttributes: []ldap.PartialAttribute{
+			{
+				Type: "cn",
+				Vals: []string{"Blue", "Red"},
+			},
+		},
+	}
+	ldapClient := &fakeLDAPClient{conn}
+
+	client := NewClientWith(config, ldapClient)
+
+	baseDN := []string{"example", "com"}
+
+	filters := map[*Field][]string{
+		FieldRegistry.Surname: {"Jones"},
+	}
+
+	newValues := map[*Field][]string{
+		FieldRegistry.CommonName: {"Blue", "Red"},
+	}
+
+	if err := client.UpdateEntry(baseDN, filters, newValues); err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
 }
 
 func TestUpdatePassword(t *testing.T) {
-	// TODO
+
+	testPass := "\"hell0$catz*\""
+
+	config := emptyConfig()
+
+	conn := &fakeLDAPConnection{
+		searchRequestToExpect: testSearchRequest(),
+		searchResultToReturn:  testSearchResult(),
+	}
+
+	conn.modifyRequestToExpect = &ldap.ModifyRequest{
+		DN: "CN=Jim H.. Jones,OU=Vault,OU=Engineering,DC=example,DC=com",
+		ReplaceAttributes: []ldap.PartialAttribute{
+			{
+				Type: "unicodePwd",
+				Vals: []string{testPass},
+			},
+		},
+	}
+	ldapClient := &fakeLDAPClient{conn}
+
+	client := NewClientWith(config, ldapClient)
+
+	baseDN := []string{"example", "com"}
+
+	filters := map[*Field][]string{
+		FieldRegistry.Surname: {"Jones"},
+	}
+
+	if err := client.UpdatePassword(baseDN, filters, testPass); err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
 }
 
-// TODO the below isn't in use yet but will be used as a mock in final tests
 type fakeLDAPClient struct {
 	connToReturn ldapifc.Connection
 }
@@ -159,83 +147,100 @@ func (f *fakeLDAPClient) DialTLS(network, addr string, config *tls.Config) (ldap
 }
 
 type fakeLDAPConnection struct {
-	usernameToExpect string
-	passwordToExpect string
-
 	modifyRequestToExpect *ldap.ModifyRequest
 
 	searchRequestToExpect *ldap.SearchRequest
 	searchResultToReturn  *ldap.SearchResult
-
-	startTLSConfigToExpect *tls.Config
 }
 
 func (f *fakeLDAPConnection) Bind(username, password string) error {
-	if f.usernameToExpect != username {
-		return fmt.Errorf("expected username of %s, but received %s", f.usernameToExpect, username)
-	}
-	if f.passwordToExpect != password {
-		return fmt.Errorf("expected password of %s, but received %s", f.passwordToExpect, password)
-	}
 	return nil
 }
 
 func (f *fakeLDAPConnection) Close() {}
 
 func (f *fakeLDAPConnection) Modify(modifyRequest *ldap.ModifyRequest) error {
-	if f.modifyRequestToExpect != modifyRequest {
+	if f.modifyRequestToExpect.DN != modifyRequest.DN {
+		return fmt.Errorf("expected modifyRequest of %s, but received %s", f.modifyRequestToExpect, modifyRequest)
+	}
+	if len(f.modifyRequestToExpect.ReplaceAttributes) != len(modifyRequest.ReplaceAttributes) {
+		return fmt.Errorf("expected modifyRequest of %s, but received %s", f.modifyRequestToExpect, modifyRequest)
+	}
+	if f.modifyRequestToExpect.ReplaceAttributes[0].Type != modifyRequest.ReplaceAttributes[0].Type {
+		return fmt.Errorf("expected modifyRequest of %s, but received %s", f.modifyRequestToExpect, modifyRequest)
+	}
+	if len(f.modifyRequestToExpect.ReplaceAttributes[0].Vals) != len(modifyRequest.ReplaceAttributes[0].Vals) {
+		return fmt.Errorf("expected modifyRequest of %s, but received %s", f.modifyRequestToExpect, modifyRequest)
+	}
+	if f.modifyRequestToExpect.ReplaceAttributes[0].Vals[0] != modifyRequest.ReplaceAttributes[0].Vals[0] {
 		return fmt.Errorf("expected modifyRequest of %s, but received %s", f.modifyRequestToExpect, modifyRequest)
 	}
 	return nil
 }
 
 func (f *fakeLDAPConnection) Search(searchRequest *ldap.SearchRequest) (*ldap.SearchResult, error) {
-	if f.searchRequestToExpect != searchRequest {
+	if f.searchRequestToExpect.BaseDN != searchRequest.BaseDN {
+		return nil, fmt.Errorf("expected searchRequest of %v, but received %v", f.searchRequestToExpect, searchRequest)
+	}
+	if f.searchRequestToExpect.Scope != searchRequest.Scope {
+		return nil, fmt.Errorf("expected searchRequest of %v, but received %v", f.searchRequestToExpect, searchRequest)
+	}
+	if f.searchRequestToExpect.Filter != searchRequest.Filter {
 		return nil, fmt.Errorf("expected searchRequest of %v, but received %v", f.searchRequestToExpect, searchRequest)
 	}
 	return f.searchResultToReturn, nil
 }
 
 func (f *fakeLDAPConnection) StartTLS(config *tls.Config) error {
-	if f.startTLSConfigToExpect != config {
-		return fmt.Errorf("expected tlsConfig of %v, but received %v", f.startTLSConfigToExpect, config)
-	}
 	return nil
 }
 
-func getConfig(username string, password string, rawURL string) (*Configuration, error) {
-
-	u, err := url.Parse(rawURL)
-	if err != nil {
-		return nil, err
-	}
-
-	var tlsMinVersion uint16
-	var tlsMaxVersion uint16
-
-	tlsMinVersion = 771
-	tlsMaxVersion = 771
-
-	host, _, err := net.SplitHostPort(u.Host)
-	if err != nil {
-		// err intentionally ignored
-		// fall back to using the parsed url's host
-		host = u.Host
-	}
-
-	tlsConfig := &tls.Config{
-		ServerName:         host,
-		MinVersion:         tlsMinVersion,
-		MaxVersion:         tlsMaxVersion,
-		InsecureSkipVerify: true,
-	}
-
+func emptyConfig() *Configuration {
 	return &Configuration{
-		StartTLS: false,
-		Username: username,
-		Password: password,
-		tlsConfigs: map[*url.URL]*tls.Config{
-			u: tlsConfig,
+		URL: "ldap://127.0.0.1",
+	}
+}
+
+func testSearchRequest() *ldap.SearchRequest {
+	return &ldap.SearchRequest{
+		BaseDN: "dc=example,dc=com",
+		Scope:  ldap.ScopeWholeSubtree,
+		Filter: "(sn=Jones)",
+	}
+}
+
+func testSearchResult() *ldap.SearchResult {
+	return &ldap.SearchResult{
+		Entries: []*ldap.Entry{
+			{
+				DN: "CN=Jim H.. Jones,OU=Vault,OU=Engineering,DC=example,DC=com",
+				Attributes: []*ldap.EntryAttribute{
+					{
+						Name:   FieldRegistry.Surname.String(),
+						Values: []string{"Jones"},
+					},
+					{
+						Name:   FieldRegistry.BadPasswordTime.String(),
+						Values: []string{"131653637947737037"},
+					},
+					{
+						Name:   FieldRegistry.PasswordLastSet.String(),
+						Values: []string{"0"},
+					},
+					{
+						Name:   FieldRegistry.PrimaryGroupID.String(),
+						Values: []string{"513"},
+					},
+					{
+						Name:   FieldRegistry.UserPrincipalName.String(),
+						Values: []string{"jim@example.com"},
+					},
+					{
+						Name:   FieldRegistry.ObjectClass.String(),
+						Values: []string{"top", "person", "organizationalPerson", "user"},
+					},
+				},
+			},
 		},
-	}, nil
+	}
 }
